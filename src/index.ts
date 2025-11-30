@@ -1,1 +1,3 @@
-export const a = 1
+export * from './Page'
+export * from './Parser'
+export * from './Document'
