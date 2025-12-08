@@ -1,0 +1,4 @@
+{
+  "indexing.includePatterns": ["node_modules/pdfjs-dist/**/*"],
+  "indexing.excludePatterns": ["node_modules/**/*"]
+}
