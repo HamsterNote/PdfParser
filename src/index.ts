@@ -24,11 +24,10 @@ import type { TextContent, TextItem } from 'pdfjs-dist/types/src/display/api'
 
 export class PdfParser extends DocumentParser {
   static ext = 'pdf'
-  constructor(file: File | ArrayBuffer) {
-    super(file)
-  }
-  async encode(): Promise<IntermediateDocument | undefined> {
-    const buffer = await this.arrayBuffer?.catch(() => undefined)
+  static async encode(
+    fileOrBuffer: File | ArrayBuffer
+  ): Promise<IntermediateDocument | undefined> {
+    const buffer = await this.toArrayBuffer(fileOrBuffer).catch(() => undefined)
     if (!buffer) return undefined
 
     console.log('loadPdf', buffer)
@@ -43,25 +42,20 @@ export class PdfParser extends DocumentParser {
     }
     const id = (pdf.fingerprints?.[0] ?? `pdf-${Date.now()}`) as string
 
-    const infoList = await this.buildPageInfoList(pdf)
+    const infoList = await this.buildPageInfoList(pdf, id)
     const pagesMap = IntermediatePageMap.makeByInfoList(infoList)
-    const outline = await this.buildOutline(pdf).catch(() => undefined)
+    const outline = await this.buildOutline(pdf, id).catch(() => undefined)
     return new IntermediateDocument({ id, title, pagesMap, outline })
   }
-  async decode(
+  static async decode(
     _intermediateDocument: IntermediateDocument
   ): Promise<File | ArrayBuffer | undefined> {
-    // 当前阶段不尝试从中间结构重建 PDF，直接返回原始的 ArrayBuffer（若可用）。
-    try {
-      const buf = await this.arrayBuffer
-      return buf
-    } catch {
-      return undefined
-    }
+    // 暂不支持从中间结构重建 PDF
+    return undefined
   }
 
   // Helpers
-  private async loadPdf(data: ArrayBuffer): Promise<PDFDocumentProxy> {
+  private static async loadPdf(data: ArrayBuffer): Promise<PDFDocumentProxy> {
     // Important: clone the buffer before passing to pdf.js worker.
     // The worker uses transfer which will detach the provided ArrayBuffer.
     // Using a cloned buffer prevents "ArrayBuffer is already detached" errors
@@ -71,7 +65,10 @@ export class PdfParser extends DocumentParser {
     return loadingTask.promise
   }
 
-  private async buildPageInfoList(pdf: PDFDocumentProxy): Promise<
+  private static async buildPageInfoList(
+    pdf: PDFDocumentProxy,
+    pdfId: string
+  ): Promise<
     {
       id: string
       pageNumber: number
@@ -89,43 +86,57 @@ export class PdfParser extends DocumentParser {
     for (let n = 1; n <= total; n++) {
       const page = await pdf.getPage(n)
       const viewport = page.getViewport({ scale: 1 })
-      const id = `page-${n}`
+      const id = `${pdfId}-page-${n}`
       const size: Number2 = { x: viewport.width, y: viewport.height }
-      const getData = () => this.buildIntermediatePage(pdf, n)
+      const getData = () => this.buildIntermediatePage(pdf, n, pdfId)
       result.push({ id, pageNumber: n, size, getData })
       page.cleanup?.()
     }
     return result
   }
 
-  private async buildIntermediatePage(
+  private static async buildIntermediatePage(
     pdf: PDFDocumentProxy,
-    pageNumber: number
+    pageNumber: number,
+    pdfId: string
   ): Promise<IntermediatePage> {
     const page = await pdf.getPage(pageNumber)
     const viewport = page.getViewport({ scale: 1 })
     const textContent = await page.getTextContent({
       includeMarkedContent: false
     })
-    const texts = this.mapTextContentToIntermediate(textContent)
-    const thumbnail = await this.renderThumbnail(page, 0.3).catch(
-      () => undefined
+    const texts = this.mapTextContentToIntermediate(
+      textContent,
+      pdfId,
+      pageNumber
     )
     const intermediatePage = new IntermediatePage({
-      id: `page-${pageNumber}`,
+      id: `${pdfId}-page-${pageNumber}`,
       number: pageNumber,
       width: viewport.width,
       height: viewport.height,
       texts,
-      thumbnail
+      thumbnail: undefined
+    })
+    // 注入按需生成缩略图的方法
+    intermediatePage.setGetThumbnail(async (scale: number) => {
+      try {
+        const p = await pdf.getPage(pageNumber)
+        const url = await this.renderThumbnail(p, scale)
+        p.cleanup?.()
+        return url
+      } catch {
+        return undefined
+      }
     })
     page.cleanup?.()
     return intermediatePage
   }
 
   // Outline
-  private async buildOutline(
-    pdf: PDFDocumentProxy
+  private static async buildOutline(
+    pdf: PDFDocumentProxy,
+    pdfId: string
   ): Promise<IntermediateOutline[] | undefined> {
     let nodes: Awaited<ReturnType<PDFDocumentProxy['getOutline']>> = []
     try {
@@ -139,12 +150,12 @@ export class PdfParser extends DocumentParser {
     const mapNode = async (
       node: (typeof nodes)[number]
     ): Promise<IntermediateOutline | undefined> => {
-      const dest = await this.mapOutlineDest(pdf, node).catch(
+      const dest = await this.mapOutlineDest(pdf, node, pdfId).catch(
         () => undefined as unknown as IntermediateOutlineDest
       )
       if (!dest) return undefined
       const outline = new IntermediateOutline({
-        id: `outline-${idCounter++}`,
+        id: `${pdfId}-outline-${idCounter++}`,
         content: String(node.title ?? ''),
         fontSize: 14,
         fontFamily: '',
@@ -176,9 +187,10 @@ export class PdfParser extends DocumentParser {
     return results.length ? results : undefined
   }
 
-  private async mapOutlineDest(
+  private static async mapOutlineDest(
     pdf: PDFDocumentProxy,
-    node: Awaited<ReturnType<PDFDocumentProxy['getOutline']>>[number]
+    node: Awaited<ReturnType<PDFDocumentProxy['getOutline']>>[number],
+    pdfId: string
   ): Promise<IntermediateOutlineDest> {
     // Prefer URL if present
     if (node?.url) {
@@ -188,7 +200,7 @@ export class PdfParser extends DocumentParser {
         unsafeUrl: node.unsafeUrl,
         newWindow: !!node.newWindow
       }
-      const children = await this.mapChildOutlineDest(pdf, node.items)
+      const children = await this.mapChildOutlineDest(pdf, node.items, pdfId)
       if (children.length) destUrl.items = children
       return destUrl
     }
@@ -219,9 +231,13 @@ export class PdfParser extends DocumentParser {
           const pageNumber = Number(index) + 1
           const destPage: IntermediateOutlineDestPage = {
             targetType: IntermediateOutlineDestType.PAGE,
-            pageId: `page-${pageNumber}`
+            pageId: `${pdfId}-page-${pageNumber}`
           }
-          const children = await this.mapChildOutlineDest(pdf, node.items)
+          const children = await this.mapChildOutlineDest(
+            pdf,
+            node.items,
+            pdfId
+          )
           if (children.length) destPage.items = children
           return destPage
         }
@@ -234,20 +250,21 @@ export class PdfParser extends DocumentParser {
     const destPos: IntermediateOutlineDestPosition = {
       targetType: IntermediateOutlineDestType.POSITION
     }
-    const children = await this.mapChildOutlineDest(pdf, node.items)
+    const children = await this.mapChildOutlineDest(pdf, node.items, pdfId)
     if (children.length) destPos.items = children
     return destPos
   }
 
-  private async mapChildOutlineDest(
+  private static async mapChildOutlineDest(
     pdf: PDFDocumentProxy,
-    items: Awaited<ReturnType<PDFDocumentProxy['getOutline']>> | undefined
+    items: Awaited<ReturnType<PDFDocumentProxy['getOutline']>> | undefined,
+    pdfId: string
   ): Promise<IntermediateOutlineDest[]> {
     if (!Array.isArray(items) || items.length === 0) return []
     const result: IntermediateOutlineDest[] = []
     for (const child of items) {
       try {
-        const d = await this.mapOutlineDest(pdf, child)
+        const d = await this.mapOutlineDest(pdf, child, pdfId)
         if (d) result.push(d)
       } catch (e) {
         console.error(e)
@@ -256,8 +273,10 @@ export class PdfParser extends DocumentParser {
     return result
   }
 
-  private mapTextContentToIntermediate(
-    textContent: TextContent
+  private static mapTextContentToIntermediate(
+    textContent: TextContent,
+    pdfId: string,
+    pageNumber: number
   ): IntermediateText[] {
     const items: IntermediateText[] = []
     const styles = textContent.styles
@@ -269,7 +288,7 @@ export class PdfParser extends DocumentParser {
       }
       const textItem = it as TextItem
       const style = styles?.[textItem.fontName] || {}
-      const id = `text-${idx++}`
+      const id = `${pdfId}-page-${pageNumber}-text-${idx++}`
       const dir = ((): TextDir => {
         switch (textItem.dir) {
           case 'rtl':
@@ -318,9 +337,9 @@ export class PdfParser extends DocumentParser {
     return items
   }
 
-  private async renderThumbnail(
+  private static async renderThumbnail(
     page: PDFPageProxy,
-    scale = 0.25
+    scale = 1
   ): Promise<string | undefined> {
     if (typeof document === 'undefined') return undefined
     const viewport = page.getViewport({ scale })
