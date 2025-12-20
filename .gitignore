@@ -1,8 +1,5 @@
 # 依赖目录（体积巨大，无业务逻辑）
 node_modules/
-pnpm-lock.yaml
-package-lock.json
-yarn.lock
 
 # 构建输出和打包目录
 dist/
@@ -37,3 +34,6 @@ coverage/
 .vscode/
 .idea/
 .history/
+
+# ts 增量编译
+*.tsbuildinfo

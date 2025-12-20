@@ -1,11 +1,8 @@
-import { DocumentParser } from '@src/parser/DocumentParser'
-import { IntermediateDocument } from '@src/types/common/HamsterDocument'
-import { IntermediatePageMap } from '@typesCommon/HamsterDocument/IntermediateDocument'
-import { IntermediatePage } from '@typesCommon/HamsterDocument/IntermediatePage'
-import {
-  IntermediateText,
-  TextDir
-} from '@typesCommon/HamsterDocument/IntermediateText'
+import { DocumentParser } from '@hamster-note/document-parser'
+import { IntermediateDocument } from '@hamster-note/types'
+import { IntermediatePageMap } from '@hamster-note/types'
+import { IntermediatePage } from '@hamster-note/types'
+import { IntermediateText, TextDir } from '@hamster-note/types'
 import {
   IntermediateOutline,
   IntermediateOutlineDest,
@@ -13,8 +10,8 @@ import {
   IntermediateOutlineDestPosition,
   IntermediateOutlineDestType,
   IntermediateOutlineDestUrl
-} from '@typesCommon/HamsterDocument/IntermediateOutline'
-import type { Number2 } from '@math'
+} from '@hamster-note/types'
+import type { Number2 } from '@hamster-note/types'
 import {
   Util,
   getDocument,
