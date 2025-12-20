@@ -4,7 +4,8 @@
   "description": "",
   "scripts": {
     "build:all": "echo 'no-build'",
-    "test": "echo 'no-test'"
+    "test": "echo 'no-test'",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@hamster-note/document-parser": "^0.1.0",
