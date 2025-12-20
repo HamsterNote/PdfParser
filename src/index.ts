@@ -16,14 +16,20 @@ import {
 } from '@typesCommon/HamsterDocument/IntermediateOutline'
 import type { Number2 } from '@math'
 import {
+  Util,
   getDocument,
   type PDFDocumentProxy,
-  type PDFPageProxy
+  type PDFPageProxy,
+  type PageViewport
 } from 'pdfjs-dist'
-import type { TextContent, TextItem } from 'pdfjs-dist/types/src/display/api'
+import type {
+  TextContent,
+  TextItem,
+  TextStyle
+} from 'pdfjs-dist/types/src/display/api'
 
 export class PdfParser extends DocumentParser {
-  static ext = 'pdf'
+  static readonly ext = 'pdf'
   static async encode(
     fileOrBuffer: File | ArrayBuffer
   ): Promise<IntermediateDocument | undefined> {
@@ -108,7 +114,8 @@ export class PdfParser extends DocumentParser {
     const texts = this.mapTextContentToIntermediate(
       textContent,
       pdfId,
-      pageNumber
+      pageNumber,
+      viewport
     )
     const intermediatePage = new IntermediatePage({
       id: `${pdfId}-page-${pageNumber}`,
@@ -192,67 +199,19 @@ export class PdfParser extends DocumentParser {
     node: Awaited<ReturnType<PDFDocumentProxy['getOutline']>>[number],
     pdfId: string
   ): Promise<IntermediateOutlineDest> {
-    // Prefer URL if present
-    if (node?.url) {
-      const destUrl: IntermediateOutlineDestUrl = {
-        targetType: IntermediateOutlineDestType.URL,
-        url: String(node.url),
-        unsafeUrl: node.unsafeUrl,
-        newWindow: !!node.newWindow
-      }
-      const children = await this.mapChildOutlineDest(pdf, node.items, pdfId)
-      if (children.length) destUrl.items = children
-      return destUrl
+    const urlDest = this.buildUrlDest(node)
+    if (urlDest) {
+      return this.appendOutlineChildren(pdf, node.items, pdfId, urlDest)
     }
 
-    // Resolve destination array
-    let destArray:
-      | Awaited<ReturnType<PDFDocumentProxy['getDestination']>>[]
-      | null = []
-    const rawDest = node?.dest
-    if (typeof rawDest === 'string') {
-      try {
-        destArray = await pdf.getDestination(rawDest)
-      } catch {
-        destArray = []
-      }
-    } else if (Array.isArray(rawDest)) {
-      destArray = rawDest
-    }
+    const destArray = await this.resolveDestArray(pdf, node?.dest)
+    const pageDest = await this.buildPageDest(pdf, destArray, pdfId, node.items)
+    if (pageDest) return pageDest
 
-    // Try resolve page index from dest array
-    if (Array.isArray(destArray) && destArray.length > 0) {
-      const ref = destArray[0]
-      try {
-        // If ref is a reference, resolve to page index
-        if (ref && typeof ref === 'object' && 'num' in ref) {
-          // @ts-expect-error 这里忽略掉问题，因为 pdf.getDestination 只给了 any 类型
-          const index = await pdf.getPageIndex(ref)
-          const pageNumber = Number(index) + 1
-          const destPage: IntermediateOutlineDestPage = {
-            targetType: IntermediateOutlineDestType.PAGE,
-            pageId: `${pdfId}-page-${pageNumber}`
-          }
-          const children = await this.mapChildOutlineDest(
-            pdf,
-            node.items,
-            pdfId
-          )
-          if (children.length) destPage.items = children
-          return destPage
-        }
-      } catch (e) {
-        console.error(e)
-      }
-    }
-
-    // Fallback to a position-type destination when nothing resolvable
     const destPos: IntermediateOutlineDestPosition = {
       targetType: IntermediateOutlineDestType.POSITION
     }
-    const children = await this.mapChildOutlineDest(pdf, node.items, pdfId)
-    if (children.length) destPos.items = children
-    return destPos
+    return this.appendOutlineChildren(pdf, node.items, pdfId, destPos)
   }
 
   private static async mapChildOutlineDest(
@@ -273,61 +232,103 @@ export class PdfParser extends DocumentParser {
     return result
   }
 
+  private static buildUrlDest(
+    node: Awaited<ReturnType<PDFDocumentProxy['getOutline']>>[number]
+  ): IntermediateOutlineDestUrl | undefined {
+    if (!node?.url) return undefined
+    return {
+      targetType: IntermediateOutlineDestType.URL,
+      url: String(node.url),
+      unsafeUrl: node.unsafeUrl,
+      newWindow: !!node.newWindow
+    }
+  }
+
+  private static async resolveDestArray(
+    pdf: PDFDocumentProxy,
+    rawDest: Awaited<ReturnType<PDFDocumentProxy['getOutline']>>[number]['dest']
+  ): Promise<Awaited<ReturnType<PDFDocumentProxy['getDestination']>>[]> {
+    if (typeof rawDest === 'string') {
+      try {
+        return (await pdf.getDestination(rawDest)) ?? []
+      } catch {
+        return []
+      }
+    }
+    if (Array.isArray(rawDest)) return rawDest
+    return []
+  }
+
+  private static async buildPageDest(
+    pdf: PDFDocumentProxy,
+    destArray: Awaited<ReturnType<PDFDocumentProxy['getDestination']>>[],
+    pdfId: string,
+    items: Awaited<ReturnType<PDFDocumentProxy['getOutline']>> | undefined
+  ): Promise<IntermediateOutlineDestPage | undefined> {
+    if (!Array.isArray(destArray) || destArray.length === 0) return undefined
+    const ref = destArray[0]
+    if (!ref || typeof ref !== 'object' || !('num' in ref)) return undefined
+    try {
+      // @ts-expect-error 这里忽略掉问题，因为 pdf.getDestination 只给了 any 类型
+      const index = await pdf.getPageIndex(ref)
+      const pageNumber = Number(index) + 1
+      const destPage: IntermediateOutlineDestPage = {
+        targetType: IntermediateOutlineDestType.PAGE,
+        pageId: `${pdfId}-page-${pageNumber}`
+      }
+      return this.appendOutlineChildren(pdf, items, pdfId, destPage)
+    } catch (e) {
+      console.error(e)
+      return undefined
+    }
+  }
+
+  private static async appendOutlineChildren<T extends IntermediateOutlineDest>(
+    pdf: PDFDocumentProxy,
+    items: Awaited<ReturnType<PDFDocumentProxy['getOutline']>> | undefined,
+    pdfId: string,
+    dest: T
+  ): Promise<T> {
+    const children = await this.mapChildOutlineDest(pdf, items, pdfId)
+    if (children.length) dest.items = children
+    return dest
+  }
+
   private static mapTextContentToIntermediate(
     textContent: TextContent,
     pdfId: string,
-    pageNumber: number
+    pageNumber: number,
+    viewport: Pick<PageViewport, 'height' | 'transform'>
   ): IntermediateText[] {
     const items: IntermediateText[] = []
     const styles = textContent.styles
     let idx = 0
-    for (const it of textContent.items) {
-      if (typeof (it as TextItem)?.str !== 'string') {
-        // Skip non-text items (e.g., marked content delimiters)
-        continue
-      }
-      const textItem = it as TextItem
+    for (const item of textContent.items) {
+      const textItem = this.asTextItem(item)
+      if (!textItem) continue
+
       const style = styles?.[textItem.fontName] || {}
       const id = `${pdfId}-page-${pageNumber}-text-${idx++}`
-      const dir = ((): TextDir => {
-        switch (textItem.dir) {
-          case 'rtl':
-            return TextDir.RTL
-          case 'ttb':
-            return TextDir.TTB
-          default:
-            return TextDir.LTR
-        }
-      })()
-      const transform: number[] = Array.isArray(textItem.transform)
-        ? textItem.transform
-        : [1, 0, 0, 1, 0, 0]
-      const x = Number(transform[4] || 0)
-      const y = Number(transform[5] || 0)
-      const height = Number(textItem.height || 0)
-      const width = Number(textItem.width || 0)
-      const ascent = Number(style.ascent ?? 0)
-      const descent = Number(style.descent ?? 0)
-      const fontFamily = String(style.fontFamily ?? '')
-      const vertical = Boolean(style.vertical ?? false) || undefined
+      const { x, y } = this.transformToViewport(textItem.transform, viewport)
+      const metrics = this.collectMetrics(textItem, style)
       const text = new IntermediateText({
         id,
         content: String(textItem.str ?? ''),
-        fontSize: height || Math.abs(ascent - descent) || 0,
-        fontFamily,
+        fontSize: metrics.fontSize,
+        fontFamily: metrics.fontFamily,
         fontWeight: 500,
         italic: false,
         // 没有颜色就用透明
         color: 'transparent',
-        width,
-        height,
-        lineHeight: height || Math.abs(ascent - descent) || 0,
+        width: metrics.width,
+        height: metrics.height,
+        lineHeight: metrics.lineHeight,
         x,
         y,
-        ascent,
-        descent,
-        vertical,
-        dir,
+        ascent: metrics.ascent,
+        descent: metrics.descent,
+        vertical: metrics.vertical,
+        dir: this.mapTextDir(textItem.dir),
         rotate: 0,
         skew: 0,
         isEOL: Boolean(textItem.hasEOL)
@@ -335,6 +336,69 @@ export class PdfParser extends DocumentParser {
       items.push(text)
     }
     return items
+  }
+
+  private static asTextItem(
+    item: TextContent['items'][number]
+  ): TextItem | undefined {
+    return typeof (item as TextItem)?.str === 'string'
+      ? (item as TextItem)
+      : undefined
+  }
+
+  private static mapTextDir(dir: TextItem['dir']): TextDir {
+    if (dir === 'rtl') return TextDir.RTL
+    if (dir === 'ttb') return TextDir.TTB
+    return TextDir.LTR
+  }
+
+  private static transformToViewport(
+    transform: TextItem['transform'],
+    viewport: Pick<PageViewport, 'height' | 'transform'>
+  ): { x: number; y: number } {
+    // pdf.js 文本矩阵基于左下角，需要乘上 viewport.transform 翻转为左上角坐标系
+    const baseTransform = Array.isArray(transform)
+      ? transform
+      : [1, 0, 0, 1, 0, 0]
+    const transformed = Util.transform(viewport.transform, baseTransform)
+    return {
+      x: Number.isFinite(transformed[4]) ? transformed[4] : 0,
+      y: Number.isFinite(transformed[5]) ? transformed[5] : 0
+    }
+  }
+
+  private static collectMetrics(
+    textItem: TextItem,
+    style: Partial<TextStyle>
+  ): {
+    width: number
+    height: number
+    ascent: number
+    descent: number
+    fontFamily: string
+    vertical?: boolean
+    fontSize: number
+    lineHeight: number
+  } {
+    const width = Math.abs(Number(textItem.width || 0))
+    const height = Math.abs(Number(textItem.height || 0))
+    const ascent = Number(style.ascent ?? 0)
+    const descent = Number(style.descent ?? 0)
+    const fontFamily = String(style.fontFamily ?? '')
+    const vertical = Boolean(style.vertical ?? false) || undefined
+    const fontSize = height || Math.abs(ascent - descent) || 0
+    const lineHeight = fontSize || height || Math.abs(ascent - descent) || 0
+
+    return {
+      width,
+      height: height || fontSize,
+      ascent,
+      descent,
+      fontFamily,
+      vertical,
+      fontSize,
+      lineHeight
+    }
   }
 
   private static async renderThumbnail(
