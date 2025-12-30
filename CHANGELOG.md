@@ -16,3 +16,7 @@
 
 ### Fixed
 - 修复 pdfjs-dist 在 Node.js 环境的兼容性问题，使用 legacy build
+
+### Chore
+- 配置项目启用 ESM 模块支持，在 package.json 中添加 "type": "module"
+- 更新 yarn.lock 依赖版本格式为语义化版本范围
