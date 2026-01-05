@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@jest/globals'
+import { describe, it, expect, jest } from '@jest/globals'
 import { PdfParser } from '@PdfParser'
 import type { PageViewport } from 'pdfjs-dist'
 import { Util } from 'pdfjs-dist'
@@ -130,9 +130,11 @@ describe('PdfParser transformToViewport', () => {
         transform: [1, 0, 0, -1, 0, 400]
       }
 
-      const result = transformToViewport(undefined, viewport)
+      const result = transformToViewport(
+        undefined as unknown as number[],
+        viewport
+      )
 
-      // 默认矩阵 [1, 0, 0, 1, 0, 0]
       expect(result.x).toBe(0)
       expect(result.y).toBe(400)
     })
@@ -143,8 +145,7 @@ describe('PdfParser transformToViewport', () => {
         transform: [1, 0, 0, -1, 0, 400]
       }
 
-      // @ts-expect-error 测试非数组输入
-      const result = transformToViewport(null, viewport)
+      const result = transformToViewport(null as unknown as number[], viewport)
 
       expect(result.x).toBe(0)
       expect(result.y).toBe(400)

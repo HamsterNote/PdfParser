@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@jest/globals'
+import { describe, it, expect, jest } from '@jest/globals'
 import { PdfParser } from '@PdfParser'
 import type { TextItem, TextStyle } from 'pdfjs-dist/types/src/display/api'
 
@@ -12,6 +12,22 @@ jest.mock(
   }),
   { virtual: true }
 )
+
+/**
+ * 辅助函数：创建 TextItem，自动填充必需的默认值
+ */
+function createTextItem(overrides: Partial<TextItem> = {}): TextItem {
+  return {
+    str: 'Hello',
+    dir: 'ltr',
+    transform: [12, 0, 0, 12, 100, 100],
+    width: 50,
+    height: 12,
+    fontName: 'F1',
+    hasEOL: false,
+    ...overrides
+  }
+}
 
 describe('PdfParser collectMetrics', () => {
   const collectMetrics = (
@@ -34,14 +50,10 @@ describe('PdfParser collectMetrics', () => {
 
   describe('基础指标计算', () => {
     it('应该正确计算宽度和高度', () => {
-      const textItem: TextItem = {
-        str: 'Hello',
-        dir: 'ltr',
-        transform: [12, 0, 0, 12, 100, 100],
+      const textItem = createTextItem({
         width: 50,
-        height: 12,
-        fontName: 'F1'
-      }
+        height: 12
+      })
       const style: Partial<TextStyle> = {}
 
       const result = collectMetrics(textItem, style)
@@ -51,14 +63,11 @@ describe('PdfParser collectMetrics', () => {
     })
 
     it('应该处理负数的宽度和高度', () => {
-      const textItem: TextItem = {
+      const textItem = createTextItem({
         str: 'Test',
-        dir: 'ltr',
-        transform: [12, 0, 0, 12, 100, 100],
         width: -50,
-        height: -12,
-        fontName: 'F1'
-      }
+        height: -12
+      })
       const style: Partial<TextStyle> = {}
 
       const result = collectMetrics(textItem, style)
@@ -69,14 +78,11 @@ describe('PdfParser collectMetrics', () => {
     })
 
     it('应该处理零宽度和高度', () => {
-      const textItem: TextItem = {
+      const textItem = createTextItem({
         str: '',
-        dir: 'ltr',
-        transform: [12, 0, 0, 12, 100, 100],
         width: 0,
-        height: 0,
-        fontName: 'F1'
-      }
+        height: 0
+      })
       const style: Partial<TextStyle> = {}
 
       const result = collectMetrics(textItem, style)
@@ -88,12 +94,7 @@ describe('PdfParser collectMetrics', () => {
 
   describe('ascent 和 descent 处理', () => {
     it('应该正确提取 ascent 和 descent', () => {
-      const textItem: TextItem = {
-        str: 'Hello',
-        dir: 'ltr',
-        transform: [12, 0, 0, 12, 100, 100],
-        fontName: 'F1'
-      }
+      const textItem = createTextItem()
       const style: Partial<TextStyle> = {
         ascent: 0.8,
         descent: -0.2
@@ -106,12 +107,7 @@ describe('PdfParser collectMetrics', () => {
     })
 
     it('当缺少 style 时应该使用默认值', () => {
-      const textItem: TextItem = {
-        str: 'Hello',
-        dir: 'ltr',
-        transform: [12, 0, 0, 12, 100, 100],
-        fontName: 'F1'
-      }
+      const textItem = createTextItem()
       const style: Partial<TextStyle> = {}
 
       const result = collectMetrics(textItem, style)
@@ -121,12 +117,7 @@ describe('PdfParser collectMetrics', () => {
     })
 
     it('当 ascent/descent 为 undefined 时应该使用默认值', () => {
-      const textItem: TextItem = {
-        str: 'Hello',
-        dir: 'ltr',
-        transform: [12, 0, 0, 12, 100, 100],
-        fontName: 'F1'
-      }
+      const textItem = createTextItem()
       const style: Partial<TextStyle> = {
         ascent: undefined,
         descent: undefined
@@ -141,12 +132,7 @@ describe('PdfParser collectMetrics', () => {
 
   describe('字体家族处理', () => {
     it('应该正确提取字体家族', () => {
-      const textItem: TextItem = {
-        str: 'Hello',
-        dir: 'ltr',
-        transform: [12, 0, 0, 12, 100, 100],
-        fontName: 'F1'
-      }
+      const textItem = createTextItem()
       const style: Partial<TextStyle> = {
         fontFamily: 'Helvetica'
       }
@@ -157,12 +143,7 @@ describe('PdfParser collectMetrics', () => {
     })
 
     it('当缺少 fontFamily 时应该返回空字符串', () => {
-      const textItem: TextItem = {
-        str: 'Hello',
-        dir: 'ltr',
-        transform: [12, 0, 0, 12, 100, 100],
-        fontName: 'F1'
-      }
+      const textItem = createTextItem()
       const style: Partial<TextStyle> = {}
 
       const result = collectMetrics(textItem, style)
@@ -171,12 +152,7 @@ describe('PdfParser collectMetrics', () => {
     })
 
     it('应该处理包含中文的字体名称', () => {
-      const textItem: TextItem = {
-        str: '你好',
-        dir: 'ltr',
-        transform: [12, 0, 0, 12, 100, 100],
-        fontName: 'F1'
-      }
+      const textItem = createTextItem({ str: '你好' })
       const style: Partial<TextStyle> = {
         fontFamily: '宋体'
       }
@@ -189,12 +165,7 @@ describe('PdfParser collectMetrics', () => {
 
   describe('垂直文本模式', () => {
     it('应该正确识别垂直文本', () => {
-      const textItem: TextItem = {
-        str: 'Hello',
-        dir: 'ttb',
-        transform: [12, 0, 0, 12, 100, 100],
-        fontName: 'F1'
-      }
+      const textItem = createTextItem({ dir: 'ttb' })
       const style: Partial<TextStyle> = {
         vertical: true
       }
@@ -205,12 +176,7 @@ describe('PdfParser collectMetrics', () => {
     })
 
     it('当 vertical 为 false 时应该返回 undefined', () => {
-      const textItem: TextItem = {
-        str: 'Hello',
-        dir: 'ltr',
-        transform: [12, 0, 0, 12, 100, 100],
-        fontName: 'F1'
-      }
+      const textItem = createTextItem()
       const style: Partial<TextStyle> = {
         vertical: false
       }
@@ -221,12 +187,7 @@ describe('PdfParser collectMetrics', () => {
     })
 
     it('当缺少 vertical 时应该返回 undefined', () => {
-      const textItem: TextItem = {
-        str: 'Hello',
-        dir: 'ltr',
-        transform: [12, 0, 0, 12, 100, 100],
-        fontName: 'F1'
-      }
+      const textItem = createTextItem()
       const style: Partial<TextStyle> = {}
 
       const result = collectMetrics(textItem, style)
@@ -237,14 +198,10 @@ describe('PdfParser collectMetrics', () => {
 
   describe('fontSize 计算', () => {
     it('应该使用 height 作为 fontSize', () => {
-      const textItem: TextItem = {
-        str: 'Hello',
-        dir: 'ltr',
-        transform: [12, 0, 0, 12, 100, 100],
+      const textItem = createTextItem({
         width: 50,
-        height: 14,
-        fontName: 'F1'
-      }
+        height: 14
+      })
       const style: Partial<TextStyle> = {}
 
       const result = collectMetrics(textItem, style)
@@ -253,14 +210,10 @@ describe('PdfParser collectMetrics', () => {
     })
 
     it('当 height 为 0 时应该使用 |ascent - descent|', () => {
-      const textItem: TextItem = {
-        str: 'Hello',
-        dir: 'ltr',
-        transform: [12, 0, 0, 12, 100, 100],
+      const textItem = createTextItem({
         width: 50,
-        height: 0,
-        fontName: 'F1'
-      }
+        height: 0
+      })
       const style: Partial<TextStyle> = {
         ascent: 0.8,
         descent: -0.2
@@ -272,14 +225,11 @@ describe('PdfParser collectMetrics', () => {
     })
 
     it('当 height 和 ascent/descent 都为 0 时应该返回 0', () => {
-      const textItem: TextItem = {
+      const textItem = createTextItem({
         str: '',
-        dir: 'ltr',
-        transform: [12, 0, 0, 12, 100, 100],
         width: 0,
-        height: 0,
-        fontName: 'F1'
-      }
+        height: 0
+      })
       const style: Partial<TextStyle> = {}
 
       const result = collectMetrics(textItem, style)
@@ -290,14 +240,10 @@ describe('PdfParser collectMetrics', () => {
 
   describe('lineHeight 计算', () => {
     it('应该使用 fontSize 作为 lineHeight', () => {
-      const textItem: TextItem = {
-        str: 'Hello',
-        dir: 'ltr',
-        transform: [12, 0, 0, 12, 100, 100],
+      const textItem = createTextItem({
         width: 50,
-        height: 14,
-        fontName: 'F1'
-      }
+        height: 14
+      })
       const style: Partial<TextStyle> = {}
 
       const result = collectMetrics(textItem, style)
@@ -306,14 +252,10 @@ describe('PdfParser collectMetrics', () => {
     })
 
     it('当 fontSize 为 0 时应该使用 height', () => {
-      const textItem: TextItem = {
-        str: 'Hello',
-        dir: 'ltr',
-        transform: [12, 0, 0, 12, 100, 100],
+      const textItem = createTextItem({
         width: 50,
-        height: 16,
-        fontName: 'F1'
-      }
+        height: 16
+      })
       const style: Partial<TextStyle> = {
         ascent: 0,
         descent: 0
@@ -325,14 +267,11 @@ describe('PdfParser collectMetrics', () => {
     })
 
     it('当所有值都为 0 时应该返回 0', () => {
-      const textItem: TextItem = {
+      const textItem = createTextItem({
         str: '',
-        dir: 'ltr',
-        transform: [12, 0, 0, 12, 100, 100],
         width: 0,
-        height: 0,
-        fontName: 'F1'
-      }
+        height: 0
+      })
       const style: Partial<TextStyle> = {}
 
       const result = collectMetrics(textItem, style)
@@ -343,14 +282,11 @@ describe('PdfParser collectMetrics', () => {
 
   describe('边界情况', () => {
     it('应该处理非常小的数值', () => {
-      const textItem: TextItem = {
-        str: 'Hello',
-        dir: 'ltr',
+      const textItem = createTextItem({
         transform: [0.001, 0, 0, 0.001, 100, 100],
         width: 0.0001,
-        height: 0.001,
-        fontName: 'F1'
-      }
+        height: 0.001
+      })
       const style: Partial<TextStyle> = {
         ascent: 0.001,
         descent: -0.001
@@ -363,14 +299,11 @@ describe('PdfParser collectMetrics', () => {
     })
 
     it('应该处理非常大的数值', () => {
-      const textItem: TextItem = {
-        str: 'Hello',
-        dir: 'ltr',
+      const textItem = createTextItem({
         transform: [1000, 0, 0, 1000, 100, 100],
         width: 5000,
-        height: 1000,
-        fontName: 'F1'
-      }
+        height: 1000
+      })
       const style: Partial<TextStyle> = {}
 
       const result = collectMetrics(textItem, style)
@@ -388,7 +321,8 @@ describe('PdfParser collectMetrics', () => {
         width: null,
         // @ts-expect-error 测试 null/undefined 处理
         height: undefined,
-        fontName: 'F1'
+        fontName: 'F1',
+        hasEOL: false
       }
       const style: Partial<TextStyle> = {}
 
@@ -401,14 +335,12 @@ describe('PdfParser collectMetrics', () => {
 
   describe('综合场景', () => {
     it('应该正确处理完整的有样式文本', () => {
-      const textItem: TextItem = {
+      const textItem = createTextItem({
         str: 'Hello World',
-        dir: 'ltr',
         transform: [16, 0, 0, 16, 100, 100],
         width: 120,
-        height: 16,
-        fontName: 'F1'
-      }
+        height: 16
+      })
       const style: Partial<TextStyle> = {
         fontFamily: 'Arial',
         ascent: 0.85,
@@ -429,14 +361,14 @@ describe('PdfParser collectMetrics', () => {
     })
 
     it('应该正确处理垂直文本', () => {
-      const textItem: TextItem = {
+      const textItem = createTextItem({
         str: 'vertical',
         dir: 'ttb',
         transform: [14, 0, 0, 14, 100, 100],
         width: 14,
         height: 80,
         fontName: 'F2'
-      }
+      })
       const style: Partial<TextStyle> = {
         fontFamily: 'VerticalFont',
         ascent: 0.9,

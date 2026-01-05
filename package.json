@@ -3,15 +3,16 @@
   "version": "0.2.0",
   "description": "",
   "scripts": {
-    "build:all": "echo 'no-build'",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "lint": "eslint ."
+    "build:all": "rolldown --config rolldown.config.ts",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
+    "lint": "eslint .",
+    "prepublishOnly": "npm run build:all"
   },
   "dependencies": {
-    "@hamster-note/document-parser": "^0.2.0",
-    "@hamster-note/types": "^0.2.0",
+    "@hamster-note/document-parser": "^0.2.1",
+    "@hamster-note/types": "^0.5.1",
     "md5": "^2.3.0",
     "pdfjs-dist": "^5.4.449"
   },
@@ -34,16 +35,18 @@
     "jest": "^30.2.0",
     "prettier": "^3.7.4",
     "prettier-config-standard": "^7.0.0",
+    "rolldown": "^1.0.0-beta.58",
+    "rolldown-plugin-dts": "^0.20.0",
     "ts-jest": "^29.4.6",
     "typescript": "^5.0.2",
     "typescript-eslint": "^8.50.0"
   },
-  "main": "src/index.ts",
-  "module": "src/index.ts",
-  "types": "src/index.ts",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
   "files": [
-    "src",
-    "tsconfig.json"
+    "dist"
   ],
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

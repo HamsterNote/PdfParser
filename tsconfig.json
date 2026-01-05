@@ -1,3 +1,10 @@
 {
-  "extends": "@system-ui-js/development-base/tsconfig.json"
+  "extends": "@system-ui-js/development-base/tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@PdfParser": ["./src/index.ts"]
+    }
+  }
 }

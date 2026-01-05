@@ -1,6 +1,6 @@
-import { describe, it, expect } from '@jest/globals'
+import { describe, it, expect, jest } from '@jest/globals'
 import { PdfParser } from '@PdfParser'
-import type { TextItem } from 'pdfjs-dist/types/src/display/api'
+import type { TextContent, TextItem } from 'pdfjs-dist/types/src/display/api'
 
 jest.mock(
   'pdfjs-dist',
@@ -16,9 +16,7 @@ jest.mock(
 describe('PdfParser asTextItem', () => {
   const asTextItem = (
     PdfParser as unknown as {
-      asTextItem: (
-        item: Parameters<(typeof TextContent)['items']>[number]
-      ) => TextItem | undefined
+      asTextItem: (item: TextContent['items'][number]) => TextItem | undefined
     }
   ).asTextItem.bind(PdfParser)
 
@@ -30,7 +28,8 @@ describe('PdfParser asTextItem', () => {
         transform: [12, 0, 0, 12, 100, 100],
         width: 50,
         height: 12,
-        fontName: 'F1'
+        fontName: 'F1',
+        hasEOL: false
       }
 
       const result = asTextItem(validItem)
@@ -46,7 +45,8 @@ describe('PdfParser asTextItem', () => {
         transform: [12, 0, 0, 12, 100, 100],
         width: 0,
         height: 12,
-        fontName: 'F1'
+        fontName: 'F1',
+        hasEOL: false
       }
 
       const result = asTextItem(itemWithEmptyStr)
@@ -62,7 +62,8 @@ describe('PdfParser asTextItem', () => {
         transform: [12, 0, 0, 12, 100, 100],
         width: 80,
         height: 12,
-        fontName: 'F1'
+        fontName: 'F1',
+        hasEOL: false
       }
 
       const result = asTextItem(itemWithSpecialChars)
@@ -78,7 +79,8 @@ describe('PdfParser asTextItem', () => {
         transform: [12, 0, 0, 12, 100, 100],
         width: 90,
         height: 12,
-        fontName: 'F1'
+        fontName: 'F1',
+        hasEOL: false
       }
 
       const result = asTextItem(itemWithUnicode)
@@ -149,7 +151,7 @@ describe('PdfParser asTextItem', () => {
     })
 
     it('应该过滤空对象', () => {
-      const result = asTextItem({})
+      const result = asTextItem({} as TextItem)
 
       expect(result).toBeUndefined()
     })
@@ -186,7 +188,8 @@ describe('PdfParser asTextItem', () => {
         transform: [12, 0, 0, 12, 100, 100],
         width: 50,
         height: 12,
-        fontName: 'F1'
+        fontName: 'F1',
+        hasEOL: false
       }
 
       const result = asTextItem(numericStringItem)
@@ -202,7 +205,8 @@ describe('PdfParser asTextItem', () => {
         transform: [12, 0, 0, 12, 100, 100],
         width: 50,
         height: 12,
-        fontName: 'F1'
+        fontName: 'F1',
+        hasEOL: false
       }
 
       const result = asTextItem(itemWithNewline)
@@ -218,7 +222,8 @@ describe('PdfParser asTextItem', () => {
         transform: [12, 0, 0, 12, 100, 100],
         width: 50,
         height: 12,
-        fontName: 'F1'
+        fontName: 'F1',
+        hasEOL: false
       }
 
       const result = asTextItem(itemWithTabs)
@@ -234,7 +239,10 @@ describe('PdfParser asTextItem', () => {
         str: 'test',
         dir: 'ltr',
         transform: [12, 0, 0, 12, 100, 100],
-        fontName: 'F1'
+        fontName: 'F1',
+        width: 50,
+        height: 12,
+        hasEOL: false
       }
 
       // 验证 str 属性的类型
