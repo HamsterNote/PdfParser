@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals'
-import { PdfParser } from '../index.js'
+import { PdfParser } from '@PdfParser'
 import { TextDir } from '@hamster-note/types'
 import type { TextContent, TextItem } from 'pdfjs-dist/types/src/display/api'
 import type { PageViewport } from 'pdfjs-dist'

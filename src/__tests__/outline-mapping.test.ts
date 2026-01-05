@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@jest/globals'
+import { describe, it, expect, jest } from '@jest/globals'
 import { PdfParser } from '@PdfParser'
 import { IntermediateOutlineDestType } from '@hamster-note/types'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
