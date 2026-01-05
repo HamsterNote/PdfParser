@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@jest/globals'
+import { describe, it, expect, jest } from '@jest/globals'
 import { PdfParser } from '@PdfParser'
 import type { PageViewport } from 'pdfjs-dist'
 import { Util } from 'pdfjs-dist'

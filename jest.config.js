@@ -27,5 +27,9 @@ export default {
     '!src/**/*.d.ts',
     '!src/**/index.ts',
     '!src/**/__mocks__/**'
-  ]
+  ],
+  // 在模块加载前注入 DOMMatrix polyfill
+  setupFiles: ['<rootDir>/test/setupPolyfills.ts'],
+  // 初始化 pdfjs worker 等全局配置
+  setupFilesAfterEnv: ['<rootDir>/test/setupTests.ts']
 }

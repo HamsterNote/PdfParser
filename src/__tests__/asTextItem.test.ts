@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@jest/globals'
+import { describe, it, expect, jest } from '@jest/globals'
 import { PdfParser } from '@PdfParser'
 import type { TextContent, TextItem } from 'pdfjs-dist/types/src/display/api'
 
