@@ -39,5 +39,5 @@ export const setupPdfjsWorkerLegacy = (): string => {
   return workerSrc
 }
 
-// 默认执行一次，确保测试文件只需导入即可生效
-setupPdfjsWorker()
+// 注意：不再自动执行 setupPdfjsWorker()
+// 测试初始化由 test/setupTests.ts 统一调用 setupPdfjsWorkerLegacy() 完成

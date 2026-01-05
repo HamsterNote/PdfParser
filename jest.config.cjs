@@ -13,8 +13,9 @@ module.exports = {
         useESM: true,
         tsconfig: {
           target: 'ES2022',
-          module: 'ESNext',
-          moduleResolution: 'bundler',
+          // 使用 Node16 模块系统以兼容 ESM 项目（package.json 中 type: "module"）
+          module: 'Node16',
+          moduleResolution: 'Node16',
           esModuleInterop: true,
           allowSyntheticDefaultImports: true
         }

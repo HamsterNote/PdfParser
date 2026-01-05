@@ -9,8 +9,7 @@
     "sourceMap": true,
     "allowImportingTsExtensions": false,
     "paths": {
-      "@/*": ["./src/*"],
-      "src/*": ["./node_modules/@hamster-note/types/src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src/**/*"],
