@@ -1,4 +1,4 @@
-import { DocumentParser } from '@hamster-note/document-parser'
+import { DocumentParser, ParserInput } from '@hamster-note/document-parser'
 import { IntermediateDocument } from '@hamster-note/types'
 import { IntermediatePageMap } from '@hamster-note/types'
 import { IntermediatePage } from '@hamster-note/types'
@@ -26,6 +26,9 @@ import type {
 } from 'pdfjs-dist/types/src/display/api'
 
 export class PdfParser extends DocumentParser {
+  encode(_input: ParserInput): Promise<IntermediateDocument> {
+    throw new Error('Method not implemented.')
+  }
   static readonly ext = 'pdf'
   static async encode(
     fileOrBuffer: File | ArrayBuffer
