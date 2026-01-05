@@ -365,17 +365,12 @@
     "@eslint/core" "^0.17.0"
     levn "^0.4.1"
 
-"@hamster-note/document-parser@^0.2.0":
+"@hamster-note/document-parser@^0.2.1":
   version "0.2.1"
   resolved "https://registry.yarnpkg.com/@hamster-note/document-parser/-/document-parser-0.2.1.tgz#d18affcd58454318cb017f90d9ce25c8711ecaf4"
   integrity sha512-bjFqqtVypefiDCnWq6FPyyFXwmE8zAr4/TWdYKCOhbr7GAjq+Hm0Hpe6F7WRVMChlvbstP5n4j5sv1phmHoPMA==
   dependencies:
     "@hamster-note/types" "^0.5.1"
-
-"@hamster-note/types@^0.2.0":
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/@hamster-note/types/-/types-0.2.0.tgz#40ed6a7cde040bf25e818b5325967f5ff6f098fd"
-  integrity sha512-DsDJmJ+hePw2UOX/A1afvAM37XJxluCuaVTmXI7xrFdEHqUMbJkL3Jo7dml699pc5JEf1QW1vlpzSQUV6/lMew==
 
 "@hamster-note/types@^0.5.1":
   version "0.5.1"

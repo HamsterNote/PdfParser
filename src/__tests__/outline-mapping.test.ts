@@ -184,7 +184,10 @@ describe('PdfParser outline mapping methods', () => {
     it('当 rawDest 为 undefined 时应该返回空数组', async () => {
       const mockPdf = {} as unknown as PDFDocumentProxy
 
-      const result = await resolveDestArray(mockPdf, undefined)
+      const result = await resolveDestArray(
+        mockPdf,
+        undefined as unknown as string | null
+      )
 
       expect(result).toEqual([])
     })
@@ -258,7 +261,7 @@ describe('PdfParser outline mapping methods', () => {
 
       const result = await buildPageDest(
         mockPdf,
-        undefined,
+        undefined as unknown as unknown[],
         'pdf-123',
         undefined
       )
@@ -332,12 +335,15 @@ describe('PdfParser outline mapping methods', () => {
   describe('appendOutlineChildren', () => {
     it('应该将子项附加到目标', async () => {
       const mockPdf = {} as unknown as PDFDocumentProxy
-      const dest = {
+      const dest: {
+        targetType: IntermediateOutlineDestType
+        pageId: string
+        items?: unknown[]
+      } = {
         targetType: IntermediateOutlineDestType.PAGE,
         pageId: 'pdf-123-page-1'
       }
 
-      // Mock mapChildOutlineDest 返回子项
       const mockChildren = [
         {
           targetType: IntermediateOutlineDestType.PAGE,
@@ -349,7 +355,6 @@ describe('PdfParser outline mapping methods', () => {
         }
       ]
 
-      // 使用私有方法的 mock
       const PdfParserWithMock = PdfParser as unknown as {
         mapChildOutlineDest: jest.Mock
         appendOutlineChildren: (
@@ -357,12 +362,15 @@ describe('PdfParser outline mapping methods', () => {
           items: unknown,
           pdfId: string,
           dest: {
-            targetType: IntermediateOutlineDestType.PAGE
+            targetType: IntermediateOutlineDestType
             pageId: string
+            items?: unknown[]
           }
-        ) => Promise<
-          { targetType: IntermediateOutlineDestType.PAGE; pageId: string }
-        >
+        ) => Promise<{
+          targetType: IntermediateOutlineDestType
+          pageId: string
+          items?: unknown[]
+        }>
       }
       PdfParserWithMock.mapChildOutlineDest = jest
         .fn()
@@ -385,27 +393,27 @@ describe('PdfParser outline mapping methods', () => {
     })
 
     it('当没有子项时应该不添加 items 属性', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const appendOutlineChildren = (
-        PdfParser as unknown as {
-          appendOutlineChildren: <
-            T extends { targetType: IntermediateOutlineDestType }
-          >(
-            pdf: PDFDocumentProxy,
-            items: unknown,
-            pdfId: string,
-            dest: T
-          ) => Promise<T>
-        }
-      ).appendOutlineChildren.bind(PdfParser)
       const mockPdf = {} as unknown as PDFDocumentProxy
-      const dest = {
+      const dest: {
+        targetType: IntermediateOutlineDestType
+        items?: unknown[]
+      } = {
         targetType: IntermediateOutlineDestType.POSITION
       }
 
       const PdfParserWithMock = PdfParser as unknown as {
         mapChildOutlineDest: jest.Mock
-        appendOutlineChildren: typeof appendOutlineChildren
+        appendOutlineChildren: <
+          T extends {
+            targetType: IntermediateOutlineDestType
+            items?: unknown[]
+          }
+        >(
+          pdf: PDFDocumentProxy,
+          items: unknown,
+          pdfId: string,
+          dest: T
+        ) => Promise<T>
       }
       PdfParserWithMock.mapChildOutlineDest = jest.fn().mockResolvedValue([])
 
@@ -421,27 +429,27 @@ describe('PdfParser outline mapping methods', () => {
     })
 
     it('应该处理 undefined 的 items', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const appendOutlineChildren = (
-        PdfParser as unknown as {
-          appendOutlineChildren: <
-            T extends { targetType: IntermediateOutlineDestType }
-          >(
-            pdf: PDFDocumentProxy,
-            items: unknown,
-            pdfId: string,
-            dest: T
-          ) => Promise<T>
-        }
-      ).appendOutlineChildren.bind(PdfParser)
       const mockPdf = {} as unknown as PDFDocumentProxy
-      const dest = {
+      const dest: {
+        targetType: IntermediateOutlineDestType
+        items?: unknown[]
+      } = {
         targetType: IntermediateOutlineDestType.POSITION
       }
 
       const PdfParserWithMock = PdfParser as unknown as {
         mapChildOutlineDest: jest.Mock
-        appendOutlineChildren: typeof appendOutlineChildren
+        appendOutlineChildren: <
+          T extends {
+            targetType: IntermediateOutlineDestType
+            items?: unknown[]
+          }
+        >(
+          pdf: PDFDocumentProxy,
+          items: unknown,
+          pdfId: string,
+          dest: T
+        ) => Promise<T>
       }
       PdfParserWithMock.mapChildOutlineDest = jest.fn().mockResolvedValue([])
 
@@ -458,6 +466,7 @@ describe('PdfParser outline mapping methods', () => {
         'pdf-123'
       )
       expect(result).toBe(dest)
+      expect(result.items).toBeUndefined()
     })
   })
 })

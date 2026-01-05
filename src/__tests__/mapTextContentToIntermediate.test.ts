@@ -50,18 +50,22 @@ function createViewport(
   }
 }
 
-// 由于 mapTextContentToIntermediate 是 PdfParser 的私有方法，
-// 我们通过 Reflect 或类型断言来访问它进行测试
+import type { IntermediateText } from '@hamster-note/types'
+
 const mapTextContentToIntermediate = (
   textContent: TextContent,
   pdfId: string,
   pageNumber: number,
   viewport: Pick<PageViewport, 'height' | 'transform'>
-) => {
-  // 使用类型断言访问私有静态方法
+): IntermediateText[] => {
   return (
     PdfParser as unknown as {
-      mapTextContentToIntermediate: typeof mapTextContentToIntermediate
+      mapTextContentToIntermediate: (
+        textContent: TextContent,
+        pdfId: string,
+        pageNumber: number,
+        viewport: Pick<PageViewport, 'height' | 'transform'>
+      ) => IntermediateText[]
     }
   ).mapTextContentToIntermediate(textContent, pdfId, pageNumber, viewport)
 }
@@ -480,7 +484,7 @@ describe('mapTextContentToIntermediate', () => {
       const viewport = createViewport(400)
       const textItem = createTextItem({ fontName: 'F1' })
       const textContent = createTextContent([textItem], {
-        F1: { fontFamily: 'Arial' }
+        F1: { fontFamily: 'Arial', ascent: 0, descent: 0, vertical: false }
       })
 
       const result = mapTextContentToIntermediate(
@@ -512,7 +516,7 @@ describe('mapTextContentToIntermediate', () => {
       const viewport = createViewport(400)
       const textItem = createTextItem({ fontName: 'F1' })
       const textContent = createTextContent([textItem], {
-        F1: { vertical: true }
+        F1: { vertical: true, ascent: 0, descent: 0, fontFamily: '' }
       })
 
       const result = mapTextContentToIntermediate(
@@ -544,7 +548,7 @@ describe('mapTextContentToIntermediate', () => {
       const viewport = createViewport(400)
       const textItem = createTextItem({ fontName: 'F1' })
       const textContent = createTextContent([textItem], {
-        F1: { ascent: 0.85, descent: -0.15 }
+        F1: { ascent: 0.85, descent: -0.15, vertical: false, fontFamily: '' }
       })
 
       const result = mapTextContentToIntermediate(

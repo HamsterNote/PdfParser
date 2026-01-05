@@ -38,29 +38,24 @@ describe('PdfParser mapTextDir', () => {
     })
 
     it('应该将 undefined 映射为默认的 TextDir.LTR', () => {
-      const result = mapTextDir(undefined)
+      const result = mapTextDir(undefined as unknown as string)
       expect(result).toBe(TextDir.LTR)
     })
 
     it('应该将 null 映射为默认的 TextDir.LTR', () => {
-      // @ts-expect-error 测试 null 输入
-      const result = mapTextDir(null)
+      const result = mapTextDir(null as unknown as string)
       expect(result).toBe(TextDir.LTR)
     })
 
     it('应该将空字符串映射为默认的 TextDir.LTR', () => {
-      // @ts-expect-error 测试空字符串输入
       const result = mapTextDir('')
       expect(result).toBe(TextDir.LTR)
     })
 
     it('应该将任何无效值映射为默认的 TextDir.LTR', () => {
-      // @ts-expect-error 测试无效输入
       expect(mapTextDir('invalid')).toBe(TextDir.LTR)
-      // @ts-expect-error 测试无效输入
       expect(mapTextDir('btt')).toBe(TextDir.LTR)
-      // @ts-expect-error 测试无效输入
-      expect(mapTextDir(123)).toBe(TextDir.LTR)
+      expect(mapTextDir(123 as unknown as string)).toBe(TextDir.LTR)
     })
   })
 
@@ -89,16 +84,12 @@ describe('PdfParser mapTextDir', () => {
 
   describe('边界情况', () => {
     it('应该处理大小写混合的输入', () => {
-      // @ts-expect-error 测试大小写混合
       expect(mapTextDir('LTR')).toBe(TextDir.LTR)
-      // @ts-expect-error 测试大小写混合
       expect(mapTextDir('Rtl')).toBe(TextDir.LTR)
-      // @ts-expect-error 测试大小写混合
       expect(mapTextDir('TTB')).toBe(TextDir.LTR)
     })
 
     it('应该处理带空格的输入', () => {
-      // @ts-expect-error 测试带空格的输入
       expect(mapTextDir(' ltr ')).toBe(TextDir.LTR)
     })
   })
