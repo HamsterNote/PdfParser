@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- 添加 PDF 解析集成测试文件 `pdfParserIntegration.test.ts`，包含 22 个集成测试用例
+
+### Fixed
+- 修复 Jest 配置中 pdfjs-dist 模块映射，使用 legacy build 解决 Node.js 环境兼容性问题
+- 修复测试工具文件 `utils.ts` 中 worker 路径后缀问题，从 `.js` 改为 `.mjs`
+
 ## [0.3.0] - 2026-01-08
 
 ### Changed

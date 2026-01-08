@@ -31,7 +31,7 @@ export const setupPdfjsWorkerLegacy = (): string => {
 
   const workerSrcPath = path.resolve(
     __dirname,
-    '../../node_modules/pdfjs-dist/legacy/build/pdf.worker.min.js'
+    '../../node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs'
   )
   const workerSrc = pathToFileURL(workerSrcPath).toString()
 

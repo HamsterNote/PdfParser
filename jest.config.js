@@ -6,7 +6,9 @@ export default {
     '^@PdfParser$': '<rootDir>/src/index.ts',
     '^@hamster-note/document-parser$':
       '<rootDir>/src/__mocks__/@hamster-note/document-parser.ts',
-    '^@hamster-note/types$': '<rootDir>/src/__mocks__/@hamster-note/types.ts'
+    '^@hamster-note/types$': '<rootDir>/src/__mocks__/@hamster-note/types.ts',
+    '^pdfjs-dist$': '<rootDir>/node_modules/pdfjs-dist/legacy/build/pdf.mjs',
+    '^pdfjs-dist/types/(.*)$': '<rootDir>/node_modules/pdfjs-dist/types/$1'
   },
   transform: {
     '^.+\\.ts$': [
