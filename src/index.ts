@@ -29,7 +29,7 @@ export class PdfParser extends DocumentParser {
   encode(_input: ParserInput): Promise<IntermediateDocument> {
     throw new Error('Method not implemented.')
   }
-  static readonly ext = 'pdf'
+  static readonly exts = ['pdf'] as const
   static async encode(
     fileOrBuffer: File | ArrayBuffer
   ): Promise<IntermediateDocument | undefined> {
