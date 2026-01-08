@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 修改 CI 脚本
 - 优化单元测试
 - 增加打包工具
+- 更新 PdfParser 类，支持多种文件扩展名
 
 ## [0.2.0] - 2025-12-28
 
