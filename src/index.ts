@@ -89,7 +89,7 @@ export class PdfParser extends DocumentParser {
     const loadingTask = getDocument({
       data: new Uint8Array(dataCopy),
       disableWorker: true
-    })
+    } as Parameters<typeof getDocument>[0])
     return loadingTask.promise.catch((e) => {
       console.error('[PdfParser] getDocument error:', e)
       throw e
@@ -276,26 +276,24 @@ export class PdfParser extends DocumentParser {
   private static async resolveDestArray(
     pdf: PDFDocumentProxy,
     rawDest: Awaited<ReturnType<PDFDocumentProxy['getOutline']>>[number]['dest']
-  ): Promise<Array<unknown[] | null>> {
+  ): Promise<unknown[]> {
     if (typeof rawDest === 'string') {
       try {
         const resolved = await pdf.getDestination(rawDest)
-        return Array.isArray(resolved) ? [resolved] : []
+        return Array.isArray(resolved) ? resolved : []
       } catch {
         return []
       }
     }
     if (Array.isArray(rawDest)) {
-      return rawDest.map((item) =>
-        Array.isArray(item) ? item : null
-      ) as Array<unknown[] | null>
+      return rawDest
     }
     return []
   }
 
   private static async buildPageDest(
     pdf: PDFDocumentProxy,
-    destArray: Array<unknown[] | null>,
+    destArray: unknown[],
     pdfId: string,
     items: Awaited<ReturnType<PDFDocumentProxy['getOutline']>> | undefined
   ): Promise<IntermediateOutlineDestPage | undefined> {
@@ -451,3 +449,57 @@ export class PdfParser extends DocumentParser {
     return url
   }
 }
+
+export type {
+  CoverageBaseline,
+  CoverageComparison,
+  CoverageSummary,
+  GenerationRun,
+  MockDataSample,
+  MockRule,
+  MockRuleCase,
+  MockRuleSet,
+  RuleCaseType,
+  RuleConstraints,
+  RuleLengthConstraint,
+  RuleType,
+  TestCase
+} from './rules/types'
+export type {
+  RuleSetValidationIssue,
+  RuleSetValidationResult
+} from './rules/validateRuleSet'
+export { validateRuleSet } from './rules/validateRuleSet'
+export {
+  loadRuleSet,
+  saveRuleSet,
+  updateRuleSet,
+  upsertRuleSet
+} from './rules/ruleSetStore'
+export { createSeededRandom, normalizeSeed } from './generator/seededRandom'
+export {
+  filterRuleCases,
+  filterRuleSetScenarios,
+  type ScenarioFilterOptions
+} from './generator/scenarioFilter'
+export {
+  createCoverageBaseline,
+  createCoverageComparison,
+  createCoverageSummary,
+  createGenerationRun,
+  createMockDataSample,
+  createMockRule,
+  createMockRuleCase,
+  createMockRuleSet,
+  createRuleConstraints,
+  createTestCase,
+  resetFactoryCounters
+} from './generator/factories'
+export { writeOutputFile } from './generator/outputWriter'
+export { GenerationError, toGenerationError } from './errors/generationErrors'
+export { generateMockData } from './generator/generateMockData'
+export { generateTestCases } from './generator/generateTestCases'
+export { runGeneration } from './generator/runGeneration'
+export type { GenerationReport } from './reporting/generationReport'
+export { createGenerationReport } from './reporting/generationReport'
+export { generateMockTests } from './services/mockGenerationService'
