@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import crypto from 'node:crypto'
 
 export type OutputWriteOptions = {
   overwrite?: boolean
@@ -28,9 +29,9 @@ export async function writeOutputFile(
     throw new Error(`目标文件已存在: ${filePath}`)
   }
 
-  const tempPath = `${filePath}.tmp-${Date.now()}-${Math.random()
-    .toString(16)
-    .slice(2)}`
+  // Use crypto for secure random values in temp file naming
+  const randomBytes = crypto.randomBytes(8).toString('hex')
+  const tempPath = `${filePath}.tmp-${Date.now()}-${randomBytes}`
 
   try {
     await fs.writeFile(tempPath, contents, { encoding })

@@ -1,5 +1,10 @@
 import { GenerationError } from '../errors/generationErrors'
-import type { MockDataSample, MockRule, MockRuleCase, MockRuleSet } from '../rules/types'
+import type {
+  MockDataSample,
+  MockRule,
+  MockRuleCase,
+  MockRuleSet
+} from '../rules/types'
 import { createSeededRandom, normalizeSeed } from './seededRandom'
 import { filterRuleSetScenarios } from './scenarioFilter'
 
@@ -21,11 +26,7 @@ function isPlainRecord(value: unknown): value is PlainRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function setPathValue(
-  target: PlainRecord,
-  path: string,
-  value: unknown
-): void {
+function setPathValue(target: PlainRecord, path: string, value: unknown): void {
   const segments = path.split('.').filter(Boolean)
   if (segments.length === 0) return
   let cursor: PlainRecord = target

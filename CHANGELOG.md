@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 修复类型推断问题，移除不必要的 @ts-expect-error 注释
 - 修复 mapOutlineDest 方法的类型定义
 - 修复 resolveDestArray 方法的类型定义和返回值处理
+- 修复 PR #7 的 CI 错误（ESLint/Prettier/SonarJS 规则违规）
 
 ## [0.3.0] - 2026-01-08
 

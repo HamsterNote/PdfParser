@@ -4,7 +4,10 @@ import type { MockRuleSet } from '../rules/types'
 import { validateRuleSet } from '../rules/validateRuleSet'
 import { createGenerationReport } from '../reporting/generationReport'
 import { writeOutputFile } from './outputWriter'
-import { generateMockData, type GenerateMockDataOptions } from './generateMockData'
+import {
+  generateMockData,
+  type GenerateMockDataOptions
+} from './generateMockData'
 import { generateTestCases } from './generateTestCases'
 
 export type RunGenerationOptions = GenerateMockDataOptions & {

@@ -33,35 +33,38 @@ function parseList(value?: string): string[] | undefined {
 
 function parseArgs(args: string[]): CliOptions | null {
   const options: CliOptions = {}
-  for (let i = 0; i < args.length; i += 1) {
+  let i = 0
+  while (i < args.length) {
     const arg = args[i]
     switch (arg) {
       case '--rules':
         options.ruleSetPath = args[i + 1]
-        i += 1
+        i += 2
         break
       case '--seed':
         options.seed = Number(args[i + 1])
-        i += 1
+        i += 2
         break
       case '--include':
         options.includeScenarios = parseList(args[i + 1])
-        i += 1
+        i += 2
         break
       case '--exclude':
         options.excludeScenarios = parseList(args[i + 1])
-        i += 1
+        i += 2
         break
       case '--output':
         options.outputDir = args[i + 1]
-        i += 1
+        i += 2
         break
       case '--overwrite':
         options.overwrite = true
+        i += 1
         break
       case '--help':
         return null
       default:
+        i += 1
         break
     }
   }

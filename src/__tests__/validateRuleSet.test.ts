@@ -34,9 +34,7 @@ describe('validateRuleSet', () => {
     const result = validateRuleSet(ruleSet)
 
     expect(result.isValid).toBe(false)
-    expect(result.errors.some((item) => item.path.includes('.type'))).toBe(
-      true
-    )
+    expect(result.errors.some((item) => item.path.includes('.type'))).toBe(true)
   })
 
   it('拒绝错误类型约束', () => {
@@ -60,9 +58,7 @@ describe('validateRuleSet', () => {
     const ruleSet = createMockRuleSet({
       rules: [
         createMockRule({
-          cases: [
-            { caseType: 'error', overrides: {} }
-          ]
+          cases: [{ caseType: 'error', overrides: {} }]
         })
       ]
     })

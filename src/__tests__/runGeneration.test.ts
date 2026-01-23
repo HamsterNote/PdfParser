@@ -36,7 +36,9 @@ describe('runGeneration', () => {
 
     const data = await readJson<unknown[]>(result.outputPaths.data)
     const cases = await readJson<unknown[]>(result.outputPaths.cases)
-    const report = await readJson<{ caseCount: number }>(result.outputPaths.report)
+    const report = await readJson<{ caseCount: number }>(
+      result.outputPaths.report
+    )
 
     expect(data.length).toBe(2)
     expect(cases.length).toBe(2)

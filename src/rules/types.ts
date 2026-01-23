@@ -1,4 +1,10 @@
-export type RuleType = 'string' | 'number' | 'enum' | 'object' | 'array' | 'boolean'
+export type RuleType =
+  | 'string'
+  | 'number'
+  | 'enum'
+  | 'object'
+  | 'array'
+  | 'boolean'
 
 export type RuleCaseType = 'normal' | 'boundary' | 'error'
 

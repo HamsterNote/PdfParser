@@ -42,9 +42,7 @@ export function createMockRuleCase(
   }
 }
 
-export function createMockRule(
-  overrides: Partial<MockRule> = {}
-): MockRule {
+export function createMockRule(overrides: Partial<MockRule> = {}): MockRule {
   return {
     id: nextId('rule'),
     path: 'payload.value',
@@ -86,9 +84,7 @@ export function createMockDataSample(
   }
 }
 
-export function createTestCase(
-  overrides: Partial<TestCase> = {}
-): TestCase {
+export function createTestCase(overrides: Partial<TestCase> = {}): TestCase {
   return {
     id: nextId('testcase'),
     ruleSetId: nextId('ruleset'),
