@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 修复 mapOutlineDest 方法的类型定义
 - 修复 resolveDestArray 方法的类型定义和返回值处理
 - 修复 PR #7 的 CI 错误（ESLint/Prettier/SonarJS 规则违规）
+- 修复 OpenAPI 规范缺少安全声明的问题，添加 `security: []` 以标记 API 为公开访问
+- 修复 data-model.md 中 `expected` 字段的文档，明确其仅在 `caseType: 'error'` 时必需
+- 修复 plan.md 中的模板注释块，删除 "ACTION REQUIRED" 占位符
+- 修复 research.md 中的格式问题，将 URL 转换为 markdown 链接，将 __mocks__ 和 pdfjs-dist 格式化为内联代码
+- 修复 spec.md 中验收标准的措辞，提高可读性和一致性
 
 ## [0.3.0] - 2026-01-08
 

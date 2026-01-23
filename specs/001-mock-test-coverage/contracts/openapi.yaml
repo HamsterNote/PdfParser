@@ -5,6 +5,7 @@ info:
   description: 规则驱动的 mock 数据与测试用例生成服务（规划接口）。
 servers:
   - url: http://localhost
+security: []
 paths:
   /mock-rulesets:
     post:
