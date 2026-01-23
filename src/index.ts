@@ -1,17 +1,20 @@
+import './polyfills/promise-withresolvers.polyfill'
+import './polyfills/dom-matrix.polyfill'
 import { DocumentParser, ParserInput } from '@hamster-note/document-parser'
-import { IntermediateDocument } from '@hamster-note/types'
-import { IntermediatePageMap } from '@hamster-note/types'
-import { IntermediatePage } from '@hamster-note/types'
-import { IntermediateText, TextDir } from '@hamster-note/types'
 import {
+  IntermediateDocument,
   IntermediateOutline,
   IntermediateOutlineDest,
   IntermediateOutlineDestPage,
   IntermediateOutlineDestPosition,
   IntermediateOutlineDestType,
-  IntermediateOutlineDestUrl
+  IntermediateOutlineDestUrl,
+  IntermediatePage,
+  IntermediatePageMap,
+  IntermediateText,
+  Number2,
+  TextDir
 } from '@hamster-note/types'
-import type { Number2 } from '@hamster-note/types'
 import {
   Util,
   getDocument,
@@ -26,18 +29,32 @@ import type {
 } from 'pdfjs-dist/types/src/display/api'
 
 export class PdfParser extends DocumentParser {
-  encode(_input: ParserInput): Promise<IntermediateDocument> {
-    throw new Error('Method not implemented.')
+  async encode(_input: ParserInput): Promise<IntermediateDocument> {
+    const arrayBuffer = await DocumentParser.toArrayBuffer(_input)
+    const doc = await PdfParser.encode(arrayBuffer)
+    if (!doc) throw new Error('Failed to parse PDF')
+    return doc
   }
   static readonly exts = ['pdf'] as const
   static async encode(
     fileOrBuffer: File | ArrayBuffer
   ): Promise<IntermediateDocument | undefined> {
-    const buffer = await this.toArrayBuffer(fileOrBuffer).catch(() => undefined)
+    console.log(
+      '[PdfParser] encode called with:',
+      typeof fileOrBuffer,
+      fileOrBuffer
+    )
+    const buffer = await this.toArrayBuffer(fileOrBuffer).catch((error) => {
+      console.error('[PdfParser] toArrayBuffer error:', error)
+      return undefined
+    })
     if (!buffer) return undefined
 
-    console.log('loadPdf', buffer)
-    const pdf = await this.loadPdf(buffer)
+    console.log('[PdfParser] buffer length:', buffer.byteLength)
+    const pdf = await this.loadPdf(buffer).catch((e) => {
+      console.error('[PdfParser] loadPdf error:', e)
+      throw e
+    })
     // title/id
     let title = 'Untitled PDF'
     try {
@@ -62,13 +79,21 @@ export class PdfParser extends DocumentParser {
 
   // Helpers
   private static async loadPdf(data: ArrayBuffer): Promise<PDFDocumentProxy> {
+    console.log('[PdfParser] loadPdf called, buffer size:', data.byteLength)
     // Important: clone the buffer before passing to pdf.js worker.
     // The worker uses transfer which will detach the provided ArrayBuffer.
     // Using a cloned buffer prevents "ArrayBuffer is already detached" errors
     // when the original buffer is reused elsewhere.
     const dataCopy = data.slice(0)
-    const loadingTask = getDocument({ data: new Uint8Array(dataCopy) })
-    return loadingTask.promise
+    console.log('[PdfParser] calling getDocument...')
+    const loadingTask = getDocument({
+      data: new Uint8Array(dataCopy),
+      disableWorker: true
+    })
+    return loadingTask.promise.catch((e) => {
+      console.error('[PdfParser] getDocument error:', e)
+      throw e
+    })
   }
 
   private static async buildPageInfoList(
@@ -136,6 +161,7 @@ export class PdfParser extends DocumentParser {
         return undefined
       }
     })
+    intermediatePage.setGetTexts(async () => texts)
     page.cleanup?.()
     return intermediatePage
   }
@@ -158,7 +184,7 @@ export class PdfParser extends DocumentParser {
       node: (typeof nodes)[number]
     ): Promise<IntermediateOutline | undefined> => {
       const dest = await this.mapOutlineDest(pdf, node, pdfId).catch(
-        () => undefined as unknown as IntermediateOutlineDest
+        () => undefined as IntermediateOutlineDest | undefined
       )
       if (!dest) return undefined
       const outline = new IntermediateOutline({
@@ -199,19 +225,22 @@ export class PdfParser extends DocumentParser {
     node: Awaited<ReturnType<PDFDocumentProxy['getOutline']>>[number],
     pdfId: string
   ): Promise<IntermediateOutlineDest> {
+    const nodeItems = (node.items ?? []) as Awaited<
+      ReturnType<PDFDocumentProxy['getOutline']>
+    >
     const urlDest = this.buildUrlDest(node)
     if (urlDest) {
-      return this.appendOutlineChildren(pdf, node.items, pdfId, urlDest)
+      return this.appendOutlineChildren(pdf, nodeItems, pdfId, urlDest)
     }
 
     const destArray = await this.resolveDestArray(pdf, node?.dest)
-    const pageDest = await this.buildPageDest(pdf, destArray, pdfId, node.items)
+    const pageDest = await this.buildPageDest(pdf, destArray, pdfId, nodeItems)
     if (pageDest) return pageDest
 
     const destPos: IntermediateOutlineDestPosition = {
       targetType: IntermediateOutlineDestType.POSITION
     }
-    return this.appendOutlineChildren(pdf, node.items, pdfId, destPos)
+    return this.appendOutlineChildren(pdf, nodeItems, pdfId, destPos)
   }
 
   private static async mapChildOutlineDest(
@@ -247,21 +276,26 @@ export class PdfParser extends DocumentParser {
   private static async resolveDestArray(
     pdf: PDFDocumentProxy,
     rawDest: Awaited<ReturnType<PDFDocumentProxy['getOutline']>>[number]['dest']
-  ): Promise<Awaited<ReturnType<PDFDocumentProxy['getDestination']>>[]> {
+  ): Promise<Array<unknown[] | null>> {
     if (typeof rawDest === 'string') {
       try {
-        return (await pdf.getDestination(rawDest)) ?? []
+        const resolved = await pdf.getDestination(rawDest)
+        return Array.isArray(resolved) ? [resolved] : []
       } catch {
         return []
       }
     }
-    if (Array.isArray(rawDest)) return rawDest
+    if (Array.isArray(rawDest)) {
+      return rawDest.map((item) =>
+        Array.isArray(item) ? item : null
+      ) as Array<unknown[] | null>
+    }
     return []
   }
 
   private static async buildPageDest(
     pdf: PDFDocumentProxy,
-    destArray: Awaited<ReturnType<PDFDocumentProxy['getDestination']>>[],
+    destArray: Array<unknown[] | null>,
     pdfId: string,
     items: Awaited<ReturnType<PDFDocumentProxy['getOutline']>> | undefined
   ): Promise<IntermediateOutlineDestPage | undefined> {
@@ -269,8 +303,9 @@ export class PdfParser extends DocumentParser {
     const ref = destArray[0]
     if (!ref || typeof ref !== 'object' || !('num' in ref)) return undefined
     try {
-      // @ts-expect-error 这里忽略掉问题，因为 pdf.getDestination 只给了 any 类型
-      const index = await pdf.getPageIndex(ref)
+      const index = await pdf.getPageIndex(
+        ref as unknown as { num: number; gen: number }
+      )
       const pageNumber = Number(index) + 1
       const destPage: IntermediateOutlineDestPage = {
         targetType: IntermediateOutlineDestType.PAGE,

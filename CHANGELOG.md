@@ -8,11 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- 添加 PDF 解析集成测试文件 `pdfParserIntegration.test.ts`，包含 22 个集成测试用例
+- 添加 Promise.withResolvers 和 DOMMatrix polyfills 以支持 Node.js 环境
+- 添加调试日志以便更好地追踪 PDF 解析过程
+
+### Changed
+- 将 pdfjs-dist 从 dependencies 移至 peerDependencies
+- 更新 rolldown 配置，将 pdfjs-dist 标记为外部依赖
 
 ### Fixed
-- 修复 Jest 配置中 pdfjs-dist 模块映射，使用 legacy build 解决 Node.js 环境兼容性问题
-- 修复测试工具文件 `utils.ts` 中 worker 路径后缀问题，从 `.js` 改为 `.mjs`
+- 修复类型推断问题，移除不必要的 @ts-expect-error 注释
+- 修复 mapOutlineDest 方法的类型定义
+- 修复 resolveDestArray 方法的类型定义和返回值处理
 
 ## [0.3.0] - 2026-01-08
 
