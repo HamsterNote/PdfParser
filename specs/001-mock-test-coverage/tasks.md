@@ -148,7 +148,7 @@ description: "Task list for 001-mock-test-coverage"
 ### Parallel Opportunities
 
 - Setup tasks T001 and T002 can be parallelized
-- Foundational tasks T003-T009 can be parallelized if different files are assigned
+- Foundational tasks T003-T010 can be parallelized if different files are assigned
 - US1 tests (T011-T014) can run in parallel
 - US2 tests (T023-T024) can run in parallel
 - US3 tests (T032-T033) can run in parallel

@@ -6,6 +6,16 @@ info:
 servers:
   - url: http://localhost
 security: []
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
 paths:
   /mock-rulesets:
     post:
@@ -152,9 +162,8 @@ paths:
           description: 任务状态
           content:
             application/json:
-              schema:
+          schema:
                 $ref: '#/components/schemas/GenerationRun'
-components:
   schemas:
     MockRuleSet:
       type: object

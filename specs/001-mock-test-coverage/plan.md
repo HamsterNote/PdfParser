@@ -11,12 +11,6 @@
 
 ## Technical Context
 
-<!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
-  for the project. The structure here is presented in advisory capacity to guide
-  the iteration process.
--->
-
 **Language/Version**: TypeScript 5.0.2  
 **Primary Dependencies**: `@hamster-note/document-parser`, `@hamster-note/types`, `pdfjs-dist` (peer), `md5`  
 **Storage**: N/A（测试用例与 mock 数据生成以文件输出为主，不引入持久化存储）  

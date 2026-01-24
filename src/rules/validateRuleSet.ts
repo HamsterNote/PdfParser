@@ -135,13 +135,13 @@ function validateConstraints(
   validatePatternConstraints(constraints, rule, errors)
   validateNumericConstraints(constraints, rule, errors)
 
-  if (rule.type !== 'string') {
+  if (rule.type !== 'string' && constraints.length !== undefined) {
     pushError(
       errors,
       `${rule.path}.constraints.length`,
       'length 只能用于 string 类型规则'
     )
-  } else {
+  } else if (rule.type === 'string' && constraints.length !== undefined) {
     validateLengthConstraints(constraints, errors, rule.path)
   }
 }
@@ -161,46 +161,48 @@ export function validateRuleSet(ruleSet: MockRuleSet): RuleSetValidationResult {
     pushError(errors, 'targetModule', 'targetModule 不能为空')
   }
 
-  ruleSet.rules.forEach((rule, index) => {
-    const basePath = `rules[${index}]`
-    if (!rule.id) {
-      pushError(errors, `${basePath}.id`, '规则 id 不能为空')
-    }
-
-    if (!rule.path) {
-      pushError(errors, `${basePath}.path`, '规则 path 不能为空')
-    }
-
-    if (!ruleTypes.includes(rule.type)) {
-      pushError(errors, `${basePath}.type`, '规则 type 不合法')
-    }
-
-    if (!rule.cases || rule.cases.length === 0) {
-      pushError(errors, `${basePath}.cases`, '规则 cases 不能为空')
-    }
-
-    rule.cases.forEach((ruleCase, caseIndex) => {
-      const casePath = `${basePath}.cases[${caseIndex}]`
-      if (!caseTypes.includes(ruleCase.caseType)) {
-        pushError(errors, `${casePath}.caseType`, 'caseType 不合法')
+  if (Array.isArray(ruleSet.rules) && ruleSet.rules.length > 0) {
+    ruleSet.rules.forEach((rule, index) => {
+      const basePath = `rules[${index}]`
+      if (!rule.id) {
+        pushError(errors, `${basePath}.id`, '规则 id 不能为空')
       }
 
-      if (ruleCase.caseType === 'error') {
-        const expectedKeys = ruleCase.expected
-          ? Object.keys(ruleCase.expected)
-          : []
-        if (expectedKeys.length === 0) {
-          pushError(
-            errors,
-            `${casePath}.expected`,
-            'error 类型必须提供可识别的 expected 信息'
-          )
+      if (!rule.path) {
+        pushError(errors, `${basePath}.path`, '规则 path 不能为空')
+      }
+
+      if (!ruleTypes.includes(rule.type)) {
+        pushError(errors, `${basePath}.type`, '规则 type 不合法')
+      }
+
+      if (!rule.cases || rule.cases.length === 0) {
+        pushError(errors, `${basePath}.cases`, '规则 cases 不能为空')
+      }
+
+      rule.cases.forEach((ruleCase, caseIndex) => {
+        const casePath = `${basePath}.cases[${caseIndex}]`
+        if (!caseTypes.includes(ruleCase.caseType)) {
+          pushError(errors, `${casePath}.caseType`, 'caseType 不合法')
         }
-      }
-    })
 
-    validateConstraints(rule.constraints, rule, errors)
-  })
+        if (ruleCase.caseType === 'error') {
+          const expectedKeys = ruleCase.expected
+            ? Object.keys(ruleCase.expected)
+            : []
+          if (expectedKeys.length === 0) {
+            pushError(
+              errors,
+              `${casePath}.expected`,
+              'error 类型必须提供可识别的 expected 信息'
+            )
+          }
+        }
+      })
+
+      validateConstraints(rule.constraints, rule, errors)
+    })
+  }
 
   return { isValid: errors.length === 0, errors }
 }

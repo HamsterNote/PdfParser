@@ -53,7 +53,7 @@
 - **字段**
   - `caseType: 'normal' | 'boundary' | 'error'`
   - `overrides: Record<string, unknown>`（必需）
-  - `expected?: Record<string, unknown>`（用于断言的期望结果片段；仅在 `caseType: 'error'` 时必需，其他情况可选或省略）
+  - `expected?: Record<string, unknown>`（可选，仅在 `caseType: 'error'` 时必需；用于错误场景的断言期望结果片段，包含错误码或错误信息等可识别信息）
 
 - **校验**
   - `caseType` 必须覆盖至少一种类型

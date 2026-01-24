@@ -35,7 +35,13 @@ export async function writeOutputFile(
 
   try {
     await fs.writeFile(tempPath, contents, { encoding })
-    await fs.rename(tempPath, filePath)
+
+    if (overwrite) {
+      await fs.rename(tempPath, filePath)
+    } else {
+      await fs.copyFile(tempPath, filePath, fs.constants.COPYFILE_EXCL)
+      await fs.rm(tempPath, { force: true })
+    }
   } catch (error) {
     try {
       await fs.rm(tempPath, { force: true })
