@@ -1,0 +1,364 @@
+openapi: 3.0.3
+info:
+  title: Mock Test Coverage Generator
+  version: 0.1.0
+  description: 规则驱动的 mock 数据与测试用例生成服务（规划接口）。
+servers:
+  - url: http://localhost
+security: []
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+paths:
+  /mock-rulesets:
+    post:
+      summary: 创建规则集
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MockRuleSet'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MockRuleSet'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /mock-rulesets/{id}:
+    get:
+      summary: 获取规则集
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 规则集详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MockRuleSet'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: 更新规则集
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MockRuleSet'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MockRuleSet'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /mock-rulesets/{id}/generate:
+    post:
+      summary: 基于规则集生成 mock 数据与用例
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateRequest'
+      responses:
+        '200':
+          description: 生成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateResponse'
+        '400':
+          description: 生成失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /coverage/baseline:
+    post:
+      summary: 记录覆盖率基线
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CoverageBaselineRequest'
+      responses:
+        '200':
+          description: 基线记录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoverageBaseline'
+  /coverage/compare:
+    post:
+      summary: 生成覆盖率对比
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CoverageCompareRequest'
+      responses:
+        '200':
+          description: 对比成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoverageComparison'
+  /generation-runs/{id}:
+    get:
+      summary: 获取生成任务状态
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 任务状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationRun'
+  components:
+    securitySchemes:
+      BearerAuth:
+        type: http
+        scheme: bearer
+        bearerFormat: JWT
+      ApiKeyAuth:
+        type: apiKey
+        in: header
+        name: X-API-Key
+    schemas:
+      MockRuleSet:
+        type: object
+        required: [id, name, version, targetModule, seed, rules]
+        properties:
+          id:
+            type: string
+          name:
+            type: string
+          version:
+            type: string
+          targetModule:
+            type: string
+          seed:
+            type: integer
+          rules:
+            type: array
+            items:
+              $ref: '#/components/schemas/MockRule'
+          exclusions:
+            type: array
+            items:
+              type: string
+      MockRule:
+        type: object
+        required: [id, path, type, cases]
+        properties:
+          id:
+            type: string
+          path:
+            type: string
+          type:
+            type: string
+            enum: [string, number, enum, object, array, boolean]
+          constraints:
+            $ref: '#/components/schemas/RuleConstraints'
+          cases:
+            type: array
+            items:
+              $ref: '#/components/schemas/MockRuleCase'
+      RuleConstraints:
+        type: object
+        properties:
+          min:
+            type: number
+          max:
+            type: number
+          enum:
+            type: array
+            items:
+              type: string
+          pattern:
+            type: string
+          nullable:
+            type: boolean
+          length:
+            type: object
+            properties:
+              min:
+                type: integer
+              max:
+                type: integer
+      MockRuleCase:
+        type: object
+        required: [caseType, overrides]
+        properties:
+          caseType:
+            type: string
+            enum: [normal, boundary, error]
+          overrides:
+            type: object
+            additionalProperties: true
+          expected:
+            type: object
+            additionalProperties: true
+      GenerateRequest:
+        type: object
+        required: [targetModule]
+        properties:
+          targetModule:
+            type: string
+          seed:
+            type: integer
+          includeScenarios:
+            type: array
+            items:
+              type: string
+          excludeScenarios:
+            type: array
+            items:
+              type: string
+          outputDir:
+            type: string
+          overwrite:
+            type: boolean
+      GenerateResponse:
+        type: object
+        required: [runId, caseCount]
+        properties:
+          runId:
+            type: string
+          caseCount:
+            type: integer
+          outputPaths:
+            type: array
+            items:
+              type: string
+      CoverageBaselineRequest:
+        type: object
+        required: [targetModule, coverageSummaryPath]
+        properties:
+          targetModule:
+            type: string
+          coverageSummaryPath:
+            type: string
+      CoverageCompareRequest:
+        type: object
+        required: [baselineId, afterSummaryPath]
+        properties:
+          baselineId:
+            type: string
+          afterSummaryPath:
+            type: string
+      CoverageSummary:
+        type: object
+        required: [lines, statements, functions, branches]
+        properties:
+          lines:
+            type: number
+          statements:
+            type: number
+          functions:
+            type: number
+          branches:
+            type: number
+      CoverageBaseline:
+        type: object
+        required: [id, targetModule, summary]
+        properties:
+          id:
+            type: string
+          targetModule:
+            type: string
+          summary:
+            $ref: '#/components/schemas/CoverageSummary'
+          capturedAt:
+            type: string
+      CoverageComparison:
+        type: object
+        required: [id, baselineId, afterId, delta]
+        properties:
+          id:
+            type: string
+          baselineId:
+            type: string
+          afterId:
+            type: string
+          delta:
+            $ref: '#/components/schemas/CoverageSummary'
+          generatedAt:
+            type: string
+      GenerationRun:
+        type: object
+        required: [id, ruleSetId, status]
+        properties:
+          id:
+            type: string
+          ruleSetId:
+            type: string
+          status:
+            type: string
+            enum: [running, succeeded, failed]
+          caseCount:
+            type: integer
+          failureCount:
+            type: integer
+          errorMessage:
+            type: string
+          startedAt:
+            type: string
+          finishedAt:
+            type: string
+      ErrorResponse:
+        type: object
+        required: [message]
+        properties:
+          message:
+            type: string
