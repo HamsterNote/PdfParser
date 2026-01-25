@@ -178,27 +178,27 @@ export function validateRuleSet(ruleSet: MockRuleSet): RuleSetValidationResult {
 
       if (!rule.cases || rule.cases.length === 0) {
         pushError(errors, `${basePath}.cases`, '规则 cases 不能为空')
-      }
-
-      rule.cases.forEach((ruleCase, caseIndex) => {
-        const casePath = `${basePath}.cases[${caseIndex}]`
-        if (!caseTypes.includes(ruleCase.caseType)) {
-          pushError(errors, `${casePath}.caseType`, 'caseType 不合法')
-        }
-
-        if (ruleCase.caseType === 'error') {
-          const expectedKeys = ruleCase.expected
-            ? Object.keys(ruleCase.expected)
-            : []
-          if (expectedKeys.length === 0) {
-            pushError(
-              errors,
-              `${casePath}.expected`,
-              'error 类型必须提供可识别的 expected 信息'
-            )
+      } else {
+        rule.cases.forEach((ruleCase, caseIndex) => {
+          const casePath = `${basePath}.cases[${caseIndex}]`
+          if (!caseTypes.includes(ruleCase.caseType)) {
+            pushError(errors, `${casePath}.caseType`, 'caseType 不合法')
           }
-        }
-      })
+
+          if (ruleCase.caseType === 'error') {
+            const expectedKeys = ruleCase.expected
+              ? Object.keys(ruleCase.expected)
+              : []
+            if (expectedKeys.length === 0) {
+              pushError(
+                errors,
+                `${casePath}.expected`,
+                'error 类型必须提供可识别的 expected 信息'
+              )
+            }
+          }
+        })
+      }
 
       validateConstraints(rule.constraints, rule, errors)
     })
