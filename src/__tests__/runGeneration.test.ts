@@ -27,21 +27,25 @@ describe('runGeneration', () => {
       ]
     })
 
-    const result = await runGeneration(ruleSet, {
-      outputDir: tempDir,
-      overwrite: true
-    })
+    try {
+      const result = await runGeneration(ruleSet, {
+        outputDir: tempDir,
+        overwrite: true
+      })
 
-    expect(result.caseCount).toBe(2)
+      expect(result.caseCount).toBe(2)
 
-    const data = await readJson<unknown[]>(result.outputPaths.data)
-    const cases = await readJson<unknown[]>(result.outputPaths.cases)
-    const report = await readJson<{ caseCount: number }>(
-      result.outputPaths.report
-    )
+      const data = await readJson<unknown[]>(result.outputPaths.data)
+      const cases = await readJson<unknown[]>(result.outputPaths.cases)
+      const report = await readJson<{ caseCount: number }>(
+        result.outputPaths.report
+      )
 
-    expect(data.length).toBe(2)
-    expect(cases.length).toBe(2)
-    expect(report.caseCount).toBe(2)
+      expect(data.length).toBe(2)
+      expect(cases.length).toBe(2)
+      expect(report.caseCount).toBe(2)
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true })
+    }
   })
 })
