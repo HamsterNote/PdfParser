@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs'
+import { promises as fs, constants as fsConstants } from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 
@@ -39,7 +39,7 @@ export async function writeOutputFile(
     if (overwrite) {
       await fs.rename(tempPath, filePath)
     } else {
-      await fs.copyFile(tempPath, filePath, fs.constants.COPYFILE_EXCL)
+      await fs.copyFile(tempPath, filePath, fsConstants.COPYFILE_EXCL)
       await fs.rm(tempPath, { force: true })
     }
   } catch (error) {
