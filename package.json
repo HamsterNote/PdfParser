@@ -14,7 +14,6 @@
   "dependencies": {
     "@hamster-note/document-parser": "^0.2.1",
     "@hamster-note/types": "^0.5.1",
-    "md5": "^2.3.0",
     "pdfjs-dist": "^5.4.530"
   },
   "devDependencies": {
@@ -22,7 +21,6 @@
     "@jest/globals": "^30.2.0",
     "@system-ui-js/development-base": "^0.1.2",
     "@types/jest": "^30.0.0",
-    "@types/md5": "^2.3.6",
     "@typescript-eslint/eslint-plugin": "^8.50.0",
     "@typescript-eslint/parser": "^8.50.0",
     "eslint": "^9.39.2",
