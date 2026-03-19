@@ -291,6 +291,14 @@ export class PdfParser extends DocumentParser {
     return []
   }
 
+  private static isPageReference(
+    value: unknown
+  ): value is { num: number; gen: number } {
+    if (typeof value !== 'object' || value === null) return false
+    const record = value as Record<string, unknown>
+    return typeof record.num === 'number' && typeof record.gen === 'number'
+  }
+
   private static async buildPageDest(
     pdf: PDFDocumentProxy,
     destArray: unknown[],
@@ -299,12 +307,23 @@ export class PdfParser extends DocumentParser {
   ): Promise<IntermediateOutlineDestPage | undefined> {
     if (!Array.isArray(destArray) || destArray.length === 0) return undefined
     const ref = destArray[0]
-    if (!ref || typeof ref !== 'object' || !('num' in ref)) return undefined
+
     try {
-      const index = await pdf.getPageIndex(
-        ref as unknown as { num: number; gen: number }
-      )
-      const pageNumber = Number(index) + 1
+      let pageNumber: number | undefined
+
+      if (typeof ref === 'number') {
+        pageNumber = Number(ref) + 1
+      } else if (this.isPageReference(ref)) {
+        const index = await pdf.getPageIndex(ref)
+        pageNumber = Number(index) + 1
+      } else {
+        return undefined
+      }
+
+      if (!Number.isFinite(pageNumber) || pageNumber < 1) {
+        return undefined
+      }
+
       const destPage: IntermediateOutlineDestPage = {
         targetType: IntermediateOutlineDestType.PAGE,
         pageId: `${pdfId}-page-${pageNumber}`
