@@ -116,28 +116,56 @@ class DOMMatrixPolyfill {
   }
 
   private setFromInit(init: DOMMatrixInit) {
+    this.set2DComponentsFromInit(init)
+    this.set4x4ComponentsFromInit(init)
+    this.setIs2DFromInit(init)
+  }
+
+  private set2DComponentsFromInit(init: DOMMatrixInit) {
     if (init.a !== undefined) this.a = init.a
     if (init.b !== undefined) this.b = init.b
     if (init.c !== undefined) this.c = init.c
     if (init.d !== undefined) this.d = init.d
     if (init.e !== undefined) this.e = init.e
     if (init.f !== undefined) this.f = init.f
+  }
+
+  private set4x4ComponentsFromInit(init: DOMMatrixInit) {
+    this.set4x4FirstRowFromInit(init)
+    this.set4x4SecondRowFromInit(init)
+    this.set4x4ThirdRowFromInit(init)
+    this.set4x4FourthRowFromInit(init)
+  }
+
+  private set4x4FirstRowFromInit(init: DOMMatrixInit) {
     if (init.m11 !== undefined) this.m11 = init.m11
     if (init.m12 !== undefined) this.m12 = init.m12
     if (init.m13 !== undefined) this.m13 = init.m13
     if (init.m14 !== undefined) this.m14 = init.m14
+  }
+
+  private set4x4SecondRowFromInit(init: DOMMatrixInit) {
     if (init.m21 !== undefined) this.m21 = init.m21
     if (init.m22 !== undefined) this.m22 = init.m22
     if (init.m23 !== undefined) this.m23 = init.m23
     if (init.m24 !== undefined) this.m24 = init.m24
+  }
+
+  private set4x4ThirdRowFromInit(init: DOMMatrixInit) {
     if (init.m31 !== undefined) this.m31 = init.m31
     if (init.m32 !== undefined) this.m32 = init.m32
     if (init.m33 !== undefined) this.m33 = init.m33
     if (init.m34 !== undefined) this.m34 = init.m34
+  }
+
+  private set4x4FourthRowFromInit(init: DOMMatrixInit) {
     if (init.m41 !== undefined) this.m41 = init.m41
     if (init.m42 !== undefined) this.m42 = init.m42
     if (init.m43 !== undefined) this.m43 = init.m43
     if (init.m44 !== undefined) this.m44 = init.m44
+  }
+
+  private setIs2DFromInit(init: DOMMatrixInit) {
     if (init.is2D !== undefined) this.is2D = init.is2D
   }
 

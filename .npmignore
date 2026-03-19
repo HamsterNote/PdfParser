@@ -1,0 +1,17 @@
+node_modules/
+coverage/
+test/
+tests/
+specs/
+src/
+.env*
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.history/
+.github/
+.specify/

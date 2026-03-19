@@ -254,6 +254,24 @@ describe('PdfParser outline mapping methods', () => {
       expect(result?.pageId).toBe('pdf-123-page-1')
     })
 
+    it('应该支持数字页码目标', async () => {
+      const mockPdf = {
+        getPageIndex: jest.fn<PDFDocumentProxy['getPageIndex']>()
+      } as unknown as PDFDocumentProxy
+
+      const destArray = [2, { name: 'XYZ' }, 0, 800, null]
+
+      const result = await buildPageDest(
+        mockPdf,
+        destArray,
+        'pdf-123',
+        undefined
+      )
+
+      expect(result?.pageId).toBe('pdf-123-page-3')
+      expect(mockPdf.getPageIndex).not.toHaveBeenCalled()
+    })
+
     it('当 destArray 为空时应该返回 undefined', async () => {
       const mockPdf = {} as unknown as PDFDocumentProxy
 

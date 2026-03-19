@@ -105,7 +105,8 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
       const normalizedText = allText.replace(/\s+/g, '').toLowerCase()
 
       expect(
-        normalizedText.includes('followers') || normalizedText.includes('follower')
+        normalizedText.includes('followers') ||
+          normalizedText.includes('follower')
       ).toBe(true)
       expect(normalizedText.includes('following')).toBe(true)
     })
@@ -116,7 +117,8 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
       const normalizedText = allText.replace(/\s+/g, '').toLowerCase()
 
       expect(
-        normalizedText.includes('repositories') || normalizedText.includes('repository')
+        normalizedText.includes('repositories') ||
+          normalizedText.includes('repository')
       ).toBe(true)
     })
   })
