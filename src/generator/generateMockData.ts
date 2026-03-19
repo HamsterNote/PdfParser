@@ -141,6 +141,7 @@ function buildSample(
     ruleSetId,
     caseType: ruleCase.caseType,
     payload,
+    expected: ruleCase.expected,
     seedUsed,
     generatedAt: new Date().toISOString()
   }

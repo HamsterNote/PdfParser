@@ -1,3 +1,4 @@
+import path from 'node:path'
 import type { MockDataSample, MockRuleSet, TestCase } from '../rules/types'
 
 export type GenerateTestCasesOptions = {
@@ -17,7 +18,7 @@ export function generateTestCases(
     targetModule: ruleSet.targetModule,
     caseType: sample.caseType,
     input: sample.payload,
-    expected: {},
-    filePath: `${outputDir}/${sample.id}.test.json`
+    expected: sample.expected ?? {},
+    filePath: path.join(outputDir, `${sample.id}.test.json`)
   }))
 }

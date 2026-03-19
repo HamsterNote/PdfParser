@@ -53,6 +53,7 @@ export type MockDataSample = {
   ruleSetId: string
   caseType: RuleCaseType
   payload: Record<string, unknown>
+  expected?: Record<string, unknown>
   seedUsed: number
   generatedAt: string
 }
