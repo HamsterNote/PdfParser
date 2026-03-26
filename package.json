@@ -9,6 +9,7 @@
     "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.js --coverage",
     "test:generate": "node dist/cli/generate.js",
     "lint": "eslint .",
+    "demo:serve": "http-server -p 8000",
     "prepublishOnly": "npm run build:all"
   },
   "dependencies": {
@@ -31,6 +32,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-sonarjs": "^3.0.5",
     "globals": "^15.14.0",
+    "http-server": "^14.1.1",
     "jest": "^30.2.0",
     "prettier": "^3.7.4",
     "prettier-config-standard": "^7.0.0",

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PdfParser Demo - Encode</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./demo.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "pdfjs-dist": "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.530/build/pdf.min.mjs"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>PdfParser Demo</h1>
+      </header>
+
+      <section class="card">
+        <h2>Load PDF</h2>
+        <div class="actions">
+          <button type="button" id="demo-load-sample">Load Sample PDF</button>
+          <span class="separator">or</span>
+          <input
+            type="file"
+            id="pdf-file-input"
+            accept=".pdf,application/pdf"
+          />
+        </div>
+        <div class="status-row">
+          <span class="status" data-role="status">Idle</span>
+        </div>
+        <div class="error-message" data-role="error"></div>
+      </section>
+
+      <section class="card">
+        <div class="actions">
+          <button type="button" id="encode-button" disabled>Encode PDF</button>
+          <button type="button" id="decode-button">Decode</button>
+        </div>
+      </section>
+
+      <section class="card" data-role="summary">
+        <h3>Document Summary</h3>
+        <div class="summary-content">
+          <p class="summary-placeholder">
+            Encode a PDF to see document summary.
+          </p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>JSON Output</h3>
+        <pre class="output" data-role="output">Click "Load Sample PDF" or upload a PDF file, then click "Encode PDF".</pre>
+      </section>
+
+      <section class="card">
+        <h3>Page Preview</h3>
+        <div class="preview" data-role="preview">
+          <span class="preview-placeholder">Preview will appear here.</span>
+        </div>
+        <p class="preview-note" data-role="preview-note">
+          Preview shows the first page of the PDF.
+        </p>
+      </section>
+
+      <section class="card">
+        <h3>Decode</h3>
+        <p class="decode-placeholder" data-role="decode-status">
+          Decode: 当前版本暂不支持从中间结构重建 PDF。
+        </p>
+      </section>
+    </div>
+    <script type="module" src="./demo.js"></script>
+  </body>
+</html>

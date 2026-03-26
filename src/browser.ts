@@ -1,0 +1,1 @@
+export { PdfParser } from './pdfParser'
