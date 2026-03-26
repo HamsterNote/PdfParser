@@ -2,6 +2,7 @@ import { PdfParser } from '../dist/browser.js'
 import { GlobalWorkerOptions } from 'pdfjs-dist'
 import { serializeIntermediate } from './demoDocumentSerialization.js'
 import { setPreviewMessage } from './demoPreview.js'
+import { createJsonOutputRenderer } from './demoJsonView.js'
 
 GlobalWorkerOptions.workerSrc =
   'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.530/build/pdf.worker.min.mjs'
@@ -13,6 +14,7 @@ const decodeButton = document.getElementById('decode-button')
 const statusElement = document.querySelector('[data-role="status"]')
 const errorElement = document.querySelector('[data-role="error"]')
 const outputElement = document.querySelector('[data-role="output"]')
+const jsonRenderer = createJsonOutputRenderer(outputElement)
 const previewElement = document.querySelector('[data-role="preview"]')
 const previewNoteElement = document.querySelector('[data-role="preview-note"]')
 const summaryElement = document.querySelector(
@@ -172,7 +174,7 @@ const handleEncode = async () => {
 
   setStatus('Encoding...')
   setError('')
-  outputElement.textContent = 'Working...'
+  jsonRenderer.renderMessage('Working...')
   setPreviewMessage(previewElement, 'Encoding...')
   setPreviewNote('Encoding PDF...')
 
@@ -184,7 +186,7 @@ const handleEncode = async () => {
     }
 
     const serialized = await serializeIntermediate(intermediate)
-    outputElement.textContent = JSON.stringify(serialized, null, 2)
+    jsonRenderer.renderData(serialized)
 
     renderSummary(serialized)
     renderFirstPagePreview(serialized)
@@ -195,7 +197,7 @@ const handleEncode = async () => {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    outputElement.textContent = message
+    jsonRenderer.renderMessage(message)
     setStatus('Encode failed')
     setError('Encoding failed. See JSON output for details.')
     setPreviewMessage(previewElement, 'Encoding failed.', true)

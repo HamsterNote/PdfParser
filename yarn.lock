@@ -777,6 +777,11 @@
   resolved "https://registry.yarnpkg.com/@oxc-project/types/-/types-0.106.0.tgz#52d06030fea43c03d0955cffadeb90b005a29ae2"
   integrity sha512-QdsH3rZq480VnOHSHgPYOhjL8O8LBdcnSjM408BpPCCUc0JYYZPG9Gafl9i3OcGk/7137o+gweb4cCv3WAUykg==
 
+"@pgrabovets/json-view@^2.8.1":
+  version "2.8.1"
+  resolved "https://registry.npmmirror.com/@pgrabovets/json-view/-/json-view-2.8.1.tgz#e5ca8f91ed1550bf7416778644fa87afb47cc641"
+  integrity sha512-fMxkreNZPiuwf/xTj+APf/PkWOib5xGbyw3taG7GOvNzx7fHiev/eHfmT230z5NuRl/eWAjrgvk7v2cuzDhShA==
+
 "@pkgjs/parseargs@^0.11.0":
   version "0.11.0"
   resolved "https://registry.yarnpkg.com/@pkgjs/parseargs/-/parseargs-0.11.0.tgz#a77ea742fab25775145434eb1d2328cf5013ac33"

@@ -107,8 +107,9 @@ input[type='file'] {
 }
 
 .output {
-  background: #0b1020;
-  color: #e6edf3;
+  background: #f8fafc;
+  color: #374151;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
   padding: 12px;
   min-height: 220px;
@@ -118,7 +119,14 @@ input[type='file'] {
     'Courier New', monospace;
   font-size: 12px;
   line-height: 1.5;
-  white-space: pre-wrap;
+}
+
+.output .jsonview {
+  font-family: inherit;
+}
+
+.output .jsonview-tree {
+  margin: 0;
 }
 
 .decode-placeholder {

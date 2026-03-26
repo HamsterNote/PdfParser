@@ -6,10 +6,12 @@
     <title>PdfParser Demo - Encode</title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="./demo.css" />
+    <link rel="stylesheet" href="../node_modules/@pgrabovets/json-view/dist/jsonview.css" />
     <script type="importmap">
       {
         "imports": {
-          "pdfjs-dist": "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.530/build/pdf.min.mjs"
+          "pdfjs-dist": "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.530/build/pdf.min.mjs",
+          "@pgrabovets/json-view": "../node_modules/@pgrabovets/json-view/dist/jsonview.js"
         }
       }
     </script>
@@ -55,7 +57,7 @@
 
       <section class="card">
         <h3>JSON Output</h3>
-        <pre class="output" data-role="output">Click "Load Sample PDF" or upload a PDF file, then click "Encode PDF".</pre>
+        <div class="output" data-role="output">Click "Load Sample PDF" or upload a PDF file, then click "Encode PDF".</div>
       </section>
 
       <section class="card">
