@@ -9,7 +9,7 @@
     "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.js --coverage",
     "test:generate": "node dist/cli/generate.js",
     "lint": "eslint .",
-    "demo:serve": "http-server -p 8000",
+    "dev": "http-server -p 5577",
     "prepublishOnly": "npm run build:all"
   },
   "dependencies": {
