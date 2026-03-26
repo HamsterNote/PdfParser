@@ -204,8 +204,12 @@ const handleEncode = async () => {
 }
 
 const handleDecode = () => {
-  if (!decodeStatusElement) return
-  decodeStatusElement.textContent = 'Decode unavailable in current release'
+  const decodeUnavailableMessage = 'Decode unavailable in current release'
+
+  if (decodeStatusElement) {
+    decodeStatusElement.textContent = decodeUnavailableMessage
+  }
+  setStatus(decodeUnavailableMessage)
 }
 
 if (loadSampleButton) {
