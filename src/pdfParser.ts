@@ -1,7 +1,11 @@
-import './polyfills/promise-withresolvers.polyfill'
-import './polyfills/dom-matrix.polyfill'
-import { DocumentParser } from '@hamster-note/document-parser'
-import type { ParserInput } from '@hamster-note/document-parser'
+import { DocumentParser, type ParserInput } from '@hamster-note/document-parser'
+import type {
+  IntermediateOutlineDest,
+  IntermediateOutlineDestPage,
+  IntermediateOutlineDestPosition,
+  IntermediateOutlineDestUrl,
+  Number2
+} from '@hamster-note/types'
 import {
   IntermediateDocument,
   IntermediateOutline,
@@ -11,25 +15,21 @@ import {
   IntermediateText,
   TextDir
 } from '@hamster-note/types'
-import type {
-  IntermediateOutlineDest,
-  IntermediateOutlineDestPage,
-  IntermediateOutlineDestPosition,
-  IntermediateOutlineDestUrl,
-  Number2
-} from '@hamster-note/types'
 import {
-  Util,
   getDocument,
+  type PageViewport,
   type PDFDocumentProxy,
   type PDFPageProxy,
-  type PageViewport
+  Util
 } from 'pdfjs-dist'
 import type {
   TextContent,
   TextItem,
   TextStyle
 } from 'pdfjs-dist/types/src/display/api'
+import { ensurePdfjsWorkerConfigured } from './pdfjsWorker'
+import './polyfills/dom-matrix.polyfill'
+import './polyfills/promise-withresolvers.polyfill'
 
 export class PdfParser extends DocumentParser {
   async encode(_input: ParserInput): Promise<IntermediateDocument> {
@@ -73,6 +73,7 @@ export class PdfParser extends DocumentParser {
   }
 
   private static async loadPdf(data: ArrayBuffer): Promise<PDFDocumentProxy> {
+    ensurePdfjsWorkerConfigured()
     const dataCopy = data.slice(0)
     const loadingTask = getDocument({
       data: new Uint8Array(dataCopy)

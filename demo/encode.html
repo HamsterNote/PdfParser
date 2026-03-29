@@ -31,12 +31,26 @@
             type="file"
             id="pdf-file-input"
             accept=".pdf,application/pdf"
+            aria-label="Select a PDF file"
           />
         </div>
         <div class="status-row">
-          <span class="status" data-role="status">Idle</span>
+          <span
+            class="status"
+            data-role="status"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            >Idle</span
+          >
         </div>
-        <div class="error-message" data-role="error"></div>
+        <div
+          class="error-message"
+          data-role="error"
+          role="alert"
+          aria-live="assertive"
+          aria-atomic="true"
+        ></div>
       </section>
 
       <section class="card">
@@ -73,7 +87,8 @@
       <section class="card">
         <h3>Decode</h3>
         <p class="decode-placeholder" data-role="decode-status">
-          Decode: 当前版本暂不支持从中间结构重建 PDF。
+          Decode:
+          <span lang="zh-CN">当前版本暂不支持从中间结构重建 PDF。</span>
         </p>
       </section>
     </div>

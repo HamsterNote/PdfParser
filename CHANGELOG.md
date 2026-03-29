@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 添加调试日志以便更好地追踪 PDF 解析过程
 - 添加浏览器可运行的 demo 页面 (`demo/`)，展示 PDF encode 结果与页面预览
 - 添加 demo 静态资源 (`demo/assets/test_github.pdf`) 作为样例文件
-- 添加 `demo:serve` 脚本用于启动本地静态服务 (端口 8000)
+- 添加 `dev` 脚本用于启动本地静态服务 (端口 5577)
 - 添加 demo 契约测试 (`src/__tests__/pdfParserDemoContract.test.ts`) 锁定 encode 输出字段
 - 添加 decode 占位说明：当前版本暂不支持从中间结构重建 PDF
 

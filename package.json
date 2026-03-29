@@ -3,7 +3,7 @@
   "version": "0.3.0",
   "description": "",
   "scripts": {
-    "build:all": "rolldown --config rolldown.config.ts",
+    "build:all": "rolldown --config rolldown.config.ts && node ./scripts/copyPdfjsWorker.mjs",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.js",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.js --watch",
     "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.js --coverage",

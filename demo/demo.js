@@ -155,7 +155,7 @@ const handleFileSelect = (event) => {
   const isPdf =
     file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
   if (!isPdf) {
-    setError('请选择 PDF 文件。')
+    setError('Please select a PDF file.')
     setStatus('Invalid file')
     currentFile = null
     disableEncodeButton()

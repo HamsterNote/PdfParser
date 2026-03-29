@@ -188,7 +188,14 @@ export class IntermediatePage {
     )
   }
 
-  async getThumbnail(): Promise<string | undefined> {
+  async getThumbnail(scale?: number): Promise<string | undefined> {
+    if (this._thumbnail !== undefined) {
+      return this._thumbnail
+    }
+    if (!this._getThumbnailFn) {
+      return undefined
+    }
+    this._thumbnail = await this._getThumbnailFn(scale ?? 1)
     return this._thumbnail
   }
 
@@ -285,7 +292,9 @@ export class IntermediatePageMap {
     // Mock implementation
   }
 
-  static readonly fromSerialized = (): IntermediatePageMap => {
+  static readonly fromSerialized = (
+    _pages?: IntermediatePageSerialized[]
+  ): IntermediatePageMap => {
     return new IntermediatePageMap()
   }
 
@@ -339,14 +348,14 @@ export interface IntermediateOutlineSerialized extends IntermediateTextSerialize
 export class IntermediateOutline extends IntermediateText {
   dest: IntermediateOutlineDest
 
-  static readonly serialize = (
+  static readonly serializeOutline = (
     outline: IntermediateOutline
   ): IntermediateOutlineSerialized => ({
     ...IntermediateText.serialize(outline),
     dest: outline.dest
   })
 
-  static readonly parse = (
+  static readonly parseOutline = (
     data: IntermediateOutlineSerialized
   ): IntermediateOutline => new IntermediateOutline(data)
 
@@ -388,7 +397,7 @@ export class IntermediateDocument {
     return this.pagesMap.getPages()
   }
 
-  set pages(pages: IntermediatePage[]) {
+  set pages(_pages: IntermediatePage[]) {
     // Mock implementation
   }
 
@@ -400,7 +409,7 @@ export class IntermediateDocument {
     return this.pagesMap.pageNumbers
   }
 
-  getCover = async (): Promise<string | undefined> => {
+  getCover = async (_scale?: number): Promise<string | undefined> => {
     return undefined
   }
 
@@ -430,7 +439,7 @@ export class IntermediateDocument {
       id: doc.id,
       title: doc.title,
       pages: pages.map(IntermediatePage.serialize),
-      outline: doc.outline?.map(IntermediateOutline.serialize)
+      outline: doc.outline?.map(IntermediateOutline.serializeOutline)
     }
   }
 
@@ -442,7 +451,7 @@ export class IntermediateDocument {
       id: data.id,
       title: data.title,
       pagesMap,
-      outline: data.outline?.map(IntermediateOutline.parse)
+      outline: data.outline?.map(IntermediateOutline.parseOutline)
     })
   }
 }
@@ -456,4 +465,4 @@ export class Vector2 {
 }
 
 // Point2D is an alias for Number2 for type compatibility
-export { Number2 as Point2D }
+export type { Number2 as Point2D }
