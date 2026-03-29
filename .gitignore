@@ -37,6 +37,3 @@ coverage/
 
 # ts 增量编译
 *.tsbuildinfo
-
-# Agent 工作目录
-.sisyphus/

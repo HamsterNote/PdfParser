@@ -10,17 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - 添加 Promise.withResolvers 和 DOMMatrix polyfills 以支持 Node.js 环境
 - 添加调试日志以便更好地追踪 PDF 解析过程
-- 添加浏览器可运行的 demo 页面 (`demo/`)，展示 PDF encode 结果与页面预览
-- 添加 demo 静态资源 (`demo/assets/test_github.pdf`) 作为样例文件
-- 添加 `dev` 脚本用于启动本地静态服务 (端口 5577)
-- 添加 demo 契约测试 (`src/__tests__/pdfParserDemoContract.test.ts`) 锁定 encode 输出字段
-- 添加 decode 占位说明：当前版本暂不支持从中间结构重建 PDF
 
 ### Changed
 - 将 pdfjs-dist 从 dependencies 移至 peerDependencies
 - 更新 rolldown 配置，将 pdfjs-dist 标记为外部依赖
-- 移除 `loadPdf()` 中的 `disableWorker: true`，启用浏览器端真实 worker 加载 PDF
-- 浏览器运行时通过 CDN 加载 pdfjs-dist worker (`pdf.worker.min.mjs`)
 
 ### Fixed
 - 修复类型推断问题，移除不必要的 @ts-expect-error 注释
