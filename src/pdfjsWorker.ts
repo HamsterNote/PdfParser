@@ -1,8 +1,10 @@
-import { createRequire } from 'node:module'
-import { pathToFileURL } from 'node:url'
 import { GlobalWorkerOptions } from 'pdfjs-dist'
 
 let cachedWorkerSrc: string | undefined
+
+type ImportMetaWithResolve = ImportMeta & {
+  resolve?: (specifier: string) => string
+}
 
 const getConfiguredWorkerSrc = (): string | undefined => {
   const workerSrc = GlobalWorkerOptions.workerSrc
@@ -16,10 +18,14 @@ const resolvePdfjsWorkerSrc = (): string => {
     return new URL('./pdf.worker.min.mjs', import.meta.url).href
   }
 
-  const workerPath = createRequire(import.meta.url).resolve(
-    'pdfjs-dist/legacy/build/pdf.worker.min.mjs'
+  const resolve = (import.meta as ImportMetaWithResolve).resolve
+  if (typeof resolve === 'function') {
+    return resolve('pdfjs-dist/legacy/build/pdf.worker.min.mjs')
+  }
+
+  throw new Error(
+    'Unable to resolve pdfjs worker automatically. Please configure GlobalWorkerOptions.workerSrc before parsing.'
   )
-  return pathToFileURL(workerPath).toString()
 }
 
 export function ensurePdfjsWorkerConfigured(): string {
