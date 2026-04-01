@@ -1,0 +1,3 @@
+- 2026-03-26: 未遇到实现阻塞问题；主要风险点是 Node 测试环境无浏览器 DOM，已通过容器桩对象规避。
+- 2026-03-26: QA 执行阶段无新增阻塞；仅观察到 invalid PDF 场景下 `pdfjs-dist` 的 warning，不影响验收断言。
+- 2026-03-30: Final Verification Wave F3 在 Node ESM smoke 失败；Node 22 直接 `import 'pdfjs-dist'` 命中 `pdfjs-dist/build/pdf.mjs`，在 `PdfParser.encode` 前即抛出 `ReferenceError: DOMMatrix is not defined`。

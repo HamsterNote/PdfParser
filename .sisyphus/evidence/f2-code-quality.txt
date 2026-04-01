@@ -1,0 +1,47 @@
+PASS
+
+结论：未发现 blocking 级问题；worker 初始化实现主路径、幂等逻辑、宿主预设值保护与回归测试整体成立。以下为高强度代码审查结果。
+
+优先级问题列表（按优先级排序）
+
+P2 - scripts/copyPdfjsWorker.mjs:11-15
+- 问题：`catch` 中把所有 `ENOENT` 都解释为“源文件不存在”。如果实际失败原因是目标目录 `dist/` 不存在，当前报错会误导排查方向。
+- 影响：脚本稳定性与可维护性受损，构建失败时定位成本升高；但不直接影响已存在正常构建链路，因此不是 blocking。
+
+P3 - src/pdfjsWorker.ts:17-18
+- 问题：浏览器分支使用 `typeof document !== 'undefined'` 作为唯一判定条件，属于偏宽松的环境探测。带 DOM shim/jsdom 的非真实浏览器环境也会走浏览器分支。
+- 影响：在测试宿主或特殊运行时中，可能把本地打包资源 `./pdf.worker.min.mjs` 当作可用资源；当前测试场景可控，且 Node 分支已有 `import.meta.resolve` 兜底，所以风险为低到中。
+
+逐文件审查
+
+1) src/pdfjsWorker.ts
+- 类型安全：5-7 行的 `ImportMetaWithResolve` 只扩展了需要的 `resolve?: (specifier: string) => string`，范围收敛合理，未引入 `any`。21-24 行先做 `typeof resolve === 'function'` 检查，再调用，类型收窄正确。
+- 环境分支：16-28 行逻辑顺序清晰——优先浏览器资源 URL，再退回 Node `import.meta.resolve`，最后给出显式错误。错误消息具备可操作性。
+- 幂等逻辑：31-45 行正确保护了宿主预设值；32-36 行优先尊重外部已配置的 `GlobalWorkerOptions.workerSrc`，38-40 行可重放缓存值，43-45 行只在首次解析后写回全局配置。整体满足幂等要求。
+- 回归风险：低。该模块只集中改动 workerSrc 初始化，不改变解析数据流；测试已覆盖浏览器分支、Node 分支、预配置保留、重复调用幂等。
+
+2) src/pdfParser.ts
+- 接入点：75-81 行在 `loadPdf()` 开头调用 `ensurePdfjsWorkerConfigured()`，位置合理，能保证所有 `getDocument()` 调用前完成初始化。
+- 回归风险：低。该调用不改变 `getDocument` 入参结构，仅增加前置初始化；如果宿主已预设 `workerSrc`，31-45 行逻辑会直接复用，不会覆盖自定义值。
+- 异常处理：当前不吞掉初始化失败异常，这是合理选择；若 worker 无法自动解析，应尽早失败并暴露明确信息，而不是在更深层由 pdfjs 以更隐晦方式报错。
+
+3) scripts/copyPdfjsWorker.mjs
+- 主路径：6-10 行简单直接，成功路径明确。
+- 稳定性：存在上述 P2 问题；除此之外，没有吞错，16 行 `throw err` 能保留非 `ENOENT` 异常，方向正确。
+
+4) src/__tests__/pdfjsWorkerInitialization.test.ts
+- 覆盖情况：44-53 行覆盖浏览器分支，55-62 行覆盖 Node 分支，64-73 行覆盖外部预设值保留，75-85 行覆盖幂等调用。测试与实现行为对齐，断言有效。
+- 类型安全：25-37 行返回值类型显式声明完整，无 `any` 泄漏。
+
+5) src/__tests__/pdfParserWorkerOverride.test.ts
+- 回归覆盖：22-35 行验证 `workerSrc` 为空时 `PdfParser.encode()` 可自动初始化；39-53 行验证自定义 `workerSrc` 在解析过程中不会被覆盖。能够直接守住本次改动的核心回归面。
+
+测试/静态检查
+- `npm test`：通过（19/19 suites, 187/187 tests）。
+- `npm run lint`：通过。
+- LSP diagnostics：`src/pdfjsWorker.ts`、`src/pdfParser.ts`、`src/__tests__/pdfjsWorkerInitialization.test.ts` 无诊断；`src/__tests__/pdfParserWorkerOverride.test.ts` 仅有非阻塞信息级提示（imports 排序、Node 内置模块建议使用 `node:` 前缀），不构成 blocking 问题。
+
+最终判定
+- PASS
+- blocking 级问题：0
+- 主要剩余风险：脚本错误提示精度（P2）、环境探测宽松度（P3）

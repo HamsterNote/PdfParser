@@ -1,0 +1,8 @@
+- 2026-03-26: `createJsonOutputRenderer` 采用内部 `currentTree` 状态，统一通过 `destroyCurrentTree()` 管理旧树清理，能避免重复渲染残留 viewer root。
+- 2026-03-26: 在 `node` 测试环境下可用轻量 `OutputElementLike` 桩对象替代真实 DOM，覆盖 `replaceChildren/append/textContent/ownerDocument.createElement` 即可验证渲染协议。
+- 2026-03-26: F1 计划合规审计确认本次实现改动严格落在 `demo/*`、`package.json`、`yarn.lock` 和 `src/__tests__/demoJsonView.test.ts`，其中 `.sisyphus/` 仅作为流程证据目录，不计入产品范围漂移。
+- 2026-03-26: Scope Fidelity（F4）显示“功能满足但范围不纯”：当 checklist 要求“仅 `demo/*`”时，`package.json`/`yarn.lock`/`src/__tests__` 会触发范围蔓延判定。
+- 2026-03-26: F2 代码质量复核通过；适配层在 `renderData/renderMessage` 中都先 `destroyCurrentTree()` 再 `clearContainer()`，且样式覆写仅落在 `.output` 作用域内。
+- 2026-03-26: Demo 手工 QA 必须先跑 `yarn build:all` 再启动 `yarn dev`，否则 `demo/demo.js` 依赖的 `dist/browser.js` 不存在。
+- 2026-03-26: 失败路径可用伪造 `.pdf` 扩展名文本文件验证；期望表现是 `[data-role="output"]` 仅保留纯文本错误且 `childElementCount` 为 0。
+- 2026-03-30: 当前 Node ESM smoke 不能只验证 `workerSrc` 自动填充；在 Node 22 环境先导入 `pdfjs-dist` 会要求 `DOMMatrix`，说明 Node 路径仍依赖 legacy/pollyfill 兼容层，需在 smoke 脚本或运行时代码中先处理该前置条件。

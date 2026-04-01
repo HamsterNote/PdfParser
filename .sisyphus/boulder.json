@@ -1,0 +1,41 @@
+{
+  "active_plan": "/Users/zhangxiao/frontend/HamsterNote/PdfParser/.sisyphus/plans/pdfjs-worker-initialization.md",
+  "started_at": "2026-03-26T13:46:33.155Z",
+  "session_ids": [
+    "ses_2c6f49606ffeTslmCBTURBwiBu",
+    "ses_2c6d5ab1bffeOaAj6oohujcgOv",
+    "ses_2c6d53113ffd4EBl4uI58mlpc5",
+    "ses_2c6d214f1ffexEslkJSsQ0GvNw",
+    "ses_2c6d1eb09ffeSBnAbp3BruyoHy",
+    "ses_2c6d1612fffejFXP46ER86B11F",
+    "ses_2c6d18d2affeBkoUdvvsBvVja0",
+    "ses_2c2c321d0ffeDoM6hYZcU5TG4l",
+    "ses_2c2c1b270ffeCyGvejqv35FjTw",
+    "ses_2c2c167b2ffehysyXHgR2mBbSk",
+    "ses_2c2c1212dfferaPyTfXjC0ybI4",
+    "ses_2c2b4779fffedzZD4FHRb7sb7Y",
+    "ses_2c2ace3bdffeejQ4vm12wAkKKb",
+    "ses_2c295a07affeZohLcRPsf1CETf"
+  ],
+  "plan_name": "pdfjs-worker-initialization",
+  "agent": "atlas",
+  "task_sessions": {
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "在 PdfParser 懒接入自动初始化并回归解析路径",
+      "session_id": "ses_2c6d5ab1bffeOaAj6oohujcgOv",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-03-29T10:37:16.418Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "Plan Compliance Audit — oracle",
+      "session_id": "ses_2c6d214f1ffexEslkJSsQ0GvNw",
+      "agent": "oracle",
+      "updated_at": "2026-03-29T10:51:11.229Z"
+    }
+  }
+}
