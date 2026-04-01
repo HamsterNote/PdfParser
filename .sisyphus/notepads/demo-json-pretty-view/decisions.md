@@ -1,0 +1,4 @@
+- 2026-03-26: `renderData` 每次都先 `destroy(previousTree)` 再 `clearContainer`，随后创建新的 `viewerRoot` 并调用 `jsonviewApi.render`，确保容器内始终只有当前树。
+- 2026-03-26: 明确不调用 `expand()` / `collapse()`，完全保留 `@pgrabovets/json-view` 默认折叠态，避免适配层引入 UI 行为偏差。
+- 2026-03-26: 范围审计采用“请求语义优先于实现便利”的判定口径；即使新增测试是合理工程实践，只要超出“仅 Demo 文件”边界，结论仍为 REJECT。
+- 2026-03-26: 手工 QA 结论为 APPROVE；成功、失败、重复渲染三条浏览器场景均通过，并已落盘到 `.sisyphus/evidence/`。

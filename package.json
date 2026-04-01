@@ -3,12 +3,13 @@
   "version": "0.3.0",
   "description": "",
   "scripts": {
-    "build:all": "rolldown --config rolldown.config.ts",
+    "build:all": "rolldown --config rolldown.config.ts && node ./scripts/copyPdfjsWorker.mjs",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.js",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.js --watch",
     "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.js --coverage",
     "test:generate": "node dist/cli/generate.js",
     "lint": "eslint .",
+    "dev": "http-server -p 5577",
     "prepublishOnly": "npm run build:all"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "@jest/globals": "^30.2.0",
+    "@pgrabovets/json-view": "^2.8.1",
     "@system-ui-js/development-base": "^0.1.2",
     "@types/jest": "^30.0.0",
     "@typescript-eslint/eslint-plugin": "^8.50.0",
@@ -31,6 +33,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-sonarjs": "^3.0.5",
     "globals": "^15.14.0",
+    "http-server": "^14.1.1",
     "jest": "^30.2.0",
     "prettier": "^3.7.4",
     "prettier-config-standard": "^7.0.0",
