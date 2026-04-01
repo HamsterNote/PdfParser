@@ -449,7 +449,9 @@ export class PdfParser extends DocumentParser {
     const canvas = document.createElement('canvas')
     canvas.width = Math.max(1, Math.floor(viewport.width))
     canvas.height = Math.max(1, Math.floor(viewport.height))
-    const renderTask = page.render({ canvas, viewport })
+    const context = canvas.getContext('2d')
+    if (!context) return undefined
+    const renderTask = page.render({ canvas, canvasContext: context, viewport })
     await renderTask.promise
     const url = canvas.toDataURL('image/png')
     return url
