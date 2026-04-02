@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.1] - 2026-04-02
+
+### Fixed
+- 分离浏览器和 Node 导出以支持 Vite 构建
+- 新增 `src/node.ts` 专门处理 Node 环境导出
+
+## [0.4.0] - 2026-04-01
 
 ### Added
 - 添加 Promise.withResolvers 和 DOMMatrix polyfills 以支持 Node.js 环境
