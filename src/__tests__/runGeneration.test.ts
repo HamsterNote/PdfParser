@@ -2,8 +2,8 @@ import { describe, it, expect } from '@jest/globals'
 import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { runGeneration } from '@PdfParser'
 import { createMockRuleSet, createMockRule } from '@PdfParser'
+import { runGeneration } from '@PdfParser/node'
 
 async function readJson<T>(filePath: string): Promise<T> {
   const raw = await fs.readFile(filePath, 'utf-8')

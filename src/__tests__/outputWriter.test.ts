@@ -2,7 +2,7 @@ import { describe, expect, it } from '@jest/globals'
 import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { writeOutputFile } from '@PdfParser'
+import { writeOutputFile } from '@PdfParser/node'
 
 describe('writeOutputFile', () => {
   it('在 overwrite 为 false 时不会覆盖已有文件', async () => {
