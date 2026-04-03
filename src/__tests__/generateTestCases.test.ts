@@ -1,10 +1,7 @@
 import { describe, expect, it } from '@jest/globals'
 import path from 'node:path'
-import {
-  createMockDataSample,
-  createMockRuleSet,
-  generateTestCases
-} from '@PdfParser'
+import { createMockDataSample, createMockRuleSet } from '@PdfParser'
+import { generateTestCases } from '@PdfParser/node'
 
 describe('generateTestCases', () => {
   it('传播样本 expected 并生成跨平台路径', () => {

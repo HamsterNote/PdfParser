@@ -1,6 +1,6 @@
 {
   "name": "@hamster-note/pdf-parser",
-  "version": "0.3.0",
+  "version": "0.4.1",
   "description": "",
   "scripts": {
     "build:all": "rolldown --config rolldown.config.ts && node ./scripts/copyPdfjsWorker.mjs",
@@ -9,6 +9,7 @@
     "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.js --coverage",
     "test:generate": "node dist/cli/generate.js",
     "lint": "eslint .",
+    "verify:vite": "npm --prefix demo/vite-fixture ci && npm --prefix demo/vite-fixture run build",
     "dev": "http-server -p 5577",
     "prepublishOnly": "npm run build:all"
   },
@@ -49,6 +50,12 @@
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./node": "./dist/node.js",
+    "./cli/generate": "./dist/cli/generate.js",
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist"
   ],

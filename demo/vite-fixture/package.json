@@ -1,0 +1,14 @@
+{
+  "name": "pdf-parser-vite-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@hamster-note/pdf-parser": "file:../.."
+  },
+  "devDependencies": {
+    "vite": "^5.4.19"
+  }
+}
