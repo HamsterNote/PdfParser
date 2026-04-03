@@ -1,0 +1,24 @@
+yarn run v1.22.19
+warning ../../../../../../package.json: No license field
+$ NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.js --runInBand src/__tests__/pdfParserDecode.test.ts -t 'empty document'
+(node:79226) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/__tests__/pdfParserDecode.test.ts
+  PdfParser.decode
+    single page document decode
+      ○ skipped should return ArrayBuffer for single page document
+    multi-page document round-trip
+      ○ skipped should preserve page count after decode then encode
+      ○ skipped should preserve page sizes after decode then encode
+    text content round-trip
+      ○ skipped should preserve key text content after decode then encode
+    empty document error handling
+      ✓ should throw error when decoding empty document (5 ms)
+      ✓ should include cannot decode empty document in error message (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       4 skipped, 2 passed, 6 total
+Snapshots:   0 total
+Time:        0.635 s, estimated 1 s
+Ran all test suites matching src/__tests__/pdfParserDecode.test.ts with tests matching "empty document".
+Done in 1.05s.

@@ -1,0 +1,73 @@
+yarn run v1.22.19
+warning ../../../../../../package.json: No license field
+$ eslint .
+Done in 3.27s.
+yarn run v1.22.19
+warning ../../../../../../package.json: No license field
+$ rolldown --config rolldown.config.ts && node ./scripts/copyPdfjsWorker.mjs
+node_modules/pdfkit/js/pdfkit.es.js (1:19) [33m[UNRESOLVED_IMPORT] Warning:[0m Could not resolve 'stream' in node_modules/pdfkit/js/pdfkit.es.js
+   [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m node_modules/pdfkit/js/pdfkit.es.js:1:20 [38;5;246m][0m
+   [38;5;246m│[0m
+ [38;5;246m1 │[0m [38;5;249mi[0m[38;5;249mm[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249ms[0m[38;5;249mt[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249ma[0m[38;5;249mm[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249m [0m'stream'[38;5;249m;[0m
+ [38;5;240m  │[0m                    ────┬───  
+ [38;5;240m  │[0m                        ╰───── Module not found, treating it as an external dependency
+[38;5;246m───╯[0m
+
+node_modules/pdfkit/js/pdfkit.es.js (2:17) [33m[UNRESOLVED_IMPORT] Warning:[0m Could not resolve 'zlib' in node_modules/pdfkit/js/pdfkit.es.js
+   [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m node_modules/pdfkit/js/pdfkit.es.js:2:18 [38;5;246m][0m
+   [38;5;246m│[0m
+ [38;5;246m2 │[0m [38;5;249mi[0m[38;5;249mm[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249mz[0m[38;5;249ml[0m[38;5;249mi[0m[38;5;249mb[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249m [0m'zlib'[38;5;249m;[0m
+ [38;5;240m  │[0m                  ───┬──  
+ [38;5;240m  │[0m                     ╰──── Module not found, treating it as an external dependency
+[38;5;246m───╯[0m
+
+node_modules/pdfkit/js/pdfkit.es.js (7:15) [33m[UNRESOLVED_IMPORT] Warning:[0m Could not resolve 'fs' in node_modules/pdfkit/js/pdfkit.es.js
+   [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m node_modules/pdfkit/js/pdfkit.es.js:7:16 [38;5;246m][0m
+   [38;5;246m│[0m
+ [38;5;246m7 │[0m [38;5;249mi[0m[38;5;249mm[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249ms[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249m [0m'fs'[38;5;249m;[0m
+ [38;5;240m  │[0m                ──┬─  
+ [38;5;240m  │[0m                  ╰─── Module not found, treating it as an external dependency
+[38;5;246m───╯[0m
+
+node_modules/pdfkit/js/pdfkit.es.js (9:29) [33m[UNRESOLVED_IMPORT] Warning:[0m Could not resolve 'events' in node_modules/pdfkit/js/pdfkit.es.js
+   [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m node_modules/pdfkit/js/pdfkit.es.js:9:30 [38;5;246m][0m
+   [38;5;246m│[0m
+ [38;5;246m9 │[0m [38;5;249mi[0m[38;5;249mm[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249m{[0m[38;5;249m [0m[38;5;249mE[0m[38;5;249mv[0m[38;5;249me[0m[38;5;249mn[0m[38;5;249mt[0m[38;5;249mE[0m[38;5;249mm[0m[38;5;249mi[0m[38;5;249mt[0m[38;5;249mt[0m[38;5;249me[0m[38;5;249mr[0m[38;5;249m [0m[38;5;249m}[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249m [0m'events'[38;5;249m;[0m
+ [38;5;240m  │[0m                              ────┬───  
+ [38;5;240m  │[0m                                  ╰───── Module not found, treating it as an external dependency
+[38;5;246m───╯[0m
+
+node_modules/pdfkit/js/pdfkit.es.js (506:12) [33m[UNRESOLVED_IMPORT] Warning:[0m Could not resolve 'crypto' in node_modules/pdfkit/js/pdfkit.es.js
+     [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m node_modules/pdfkit/js/pdfkit.es.js:506:13 [38;5;246m][0m
+     [38;5;246m│[0m
+ [38;5;246m506 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mq[0m[38;5;249mu[0m[38;5;249mi[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249m([0m'crypto'[38;5;249m)[0m[38;5;249m.[0m[38;5;249mr[0m[38;5;249ma[0m[38;5;249mn[0m[38;5;249md[0m[38;5;249mo[0m[38;5;249mm[0m[38;5;249mF[0m[38;5;249mi[0m[38;5;249ml[0m[38;5;249ml[0m[38;5;249mS[0m[38;5;249my[0m[38;5;249mn[0m[38;5;249mc[0m[38;5;249m([0m[38;5;249mb[0m[38;5;249my[0m[38;5;249mt[0m[38;5;249me[0m[38;5;249ms[0m[38;5;249m)[0m[38;5;249m;[0m
+ [38;5;240m    │[0m             ────┬───  
+ [38;5;240m    │[0m                 ╰───── Module not found, treating it as an external dependency
+[38;5;246m─────╯[0m
+
+node_modules/png-js/png-node.js (21:19) [33m[UNRESOLVED_IMPORT] Warning:[0m Could not resolve 'fs' in node_modules/png-js/png-node.js
+    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m node_modules/png-js/png-node.js:21:20 [38;5;246m][0m
+    [38;5;246m│[0m
+ [38;5;246m21 │[0m [38;5;249mc[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249ms[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249ms[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m [0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mq[0m[38;5;249mu[0m[38;5;249mi[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249m([0m'fs'[38;5;249m)[0m[38;5;249m;[0m
+ [38;5;240m   │[0m                    ──┬─  
+ [38;5;240m   │[0m                      ╰─── Module not found, treating it as an external dependency
+[38;5;246m────╯[0m
+
+node_modules/png-js/png-node.js (22:21) [33m[UNRESOLVED_IMPORT] Warning:[0m Could not resolve 'zlib' in node_modules/png-js/png-node.js
+    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m node_modules/png-js/png-node.js:22:22 [38;5;246m][0m
+    [38;5;246m│[0m
+ [38;5;246m22 │[0m [38;5;249mc[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249ms[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249mz[0m[38;5;249ml[0m[38;5;249mi[0m[38;5;249mb[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m [0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mq[0m[38;5;249mu[0m[38;5;249mi[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249m([0m'zlib'[38;5;249m)[0m[38;5;249m;[0m
+ [38;5;240m   │[0m                      ───┬──  
+ [38;5;240m   │[0m                         ╰──── Module not found, treating it as an external dependency
+[38;5;246m────╯[0m
+
+<DIR>/cli/generate.js.map            asset │ size:     4.21 kB
+<DIR>/runGeneration-DGKSMOfq.js.map  asset │ size:    31.42 kB
+<DIR>/index.js.map                   asset │ size: 1,747.35 kB
+<DIR>/cli/generate.js                chunk │ size:     2.32 kB
+<DIR>/runGeneration-DGKSMOfq.js      chunk │ size:    15.38 kB
+<DIR>/index.js                       chunk │ size:   941.54 kB
+
+✔ rolldown v1.0.0-beta.58 Finished in 52.42 ms
+Copied: node_modules/pdfjs-dist/build/pdf.worker.min.mjs -> dist/pdf.worker.min.mjs
+Done in 0.46s.

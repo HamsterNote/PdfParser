@@ -1,0 +1,10 @@
+yarn run v1.22.19
+$ NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.js --runInBand src/__tests__/pdfDocumentRenderer.test.ts -t 'skips invalid text'
+  console.warn
+    Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+
+      at warn (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:25:54523)
+      at PartialEvaluator.fetchStandardFontData (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:28:520406)
+      at PartialEvaluator.translateFont (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:28:566341)
+
+Done in 1.51s.

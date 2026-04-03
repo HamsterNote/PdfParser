@@ -1,41 +1,86 @@
 {
-  "active_plan": "/Users/zhangxiao/frontend/HamsterNote/PdfParser/.sisyphus/plans/pdfjs-worker-initialization.md",
-  "started_at": "2026-03-26T13:46:33.155Z",
+  "active_plan": "/Users/zhangxiao/.local/share/opencode/worktree/1aa2bf62c9efdbd97bb7e2cf02fa1bb8fdfed44f/feature-decode-feature/.sisyphus/plans/pdfparser-decode.md",
+  "started_at": "2026-04-03T09:09:04.957Z",
   "session_ids": [
-    "ses_2c6f49606ffeTslmCBTURBwiBu",
-    "ses_2c6d5ab1bffeOaAj6oohujcgOv",
-    "ses_2c6d53113ffd4EBl4uI58mlpc5",
-    "ses_2c6d214f1ffexEslkJSsQ0GvNw",
-    "ses_2c6d1eb09ffeSBnAbp3BruyoHy",
-    "ses_2c6d1612fffejFXP46ER86B11F",
-    "ses_2c6d18d2affeBkoUdvvsBvVja0",
-    "ses_2c2c321d0ffeDoM6hYZcU5TG4l",
-    "ses_2c2c1b270ffeCyGvejqv35FjTw",
-    "ses_2c2c167b2ffehysyXHgR2mBbSk",
-    "ses_2c2c1212dfferaPyTfXjC0ybI4",
-    "ses_2c2b4779fffedzZD4FHRb7sb7Y",
-    "ses_2c2ace3bdffeejQ4vm12wAkKKb",
-    "ses_2c295a07affeZohLcRPsf1CETf"
+    "ses_2ad65953cffeogotdAO4sjJJen",
+    "ses_2ad649cabffeBulxVPXE6Wl5Pl",
+    "ses_2ad649c81ffewQs0HePL09X2Y0",
+    "ses_2ad608a08ffe1FwAT4090cQmeb",
+    "ses_2ad502622ffeP2nMR2PtxXcJW6",
+    "ses_2ad45c3f6ffeYfwqDvhN6DfZyg",
+    "ses_2ad38b21cffealLtqa26QrGapE",
+    "ses_2ad3321fbffeR6EzTJNm3ZFxNM",
+    "ses_2ad2833b6ffeFV6sONRVlzEXNu",
+    "ses_2ad1ffe8fffe2ADijrUuoG4Eg6",
+    "ses_2ad1bb77fffeirg5BfrKJXvKIR",
+    "ses_2ad18c8f3ffeQPYqD1eKWO9lvY",
+    "ses_2ad161e94ffeNfUfRa14oLpvZ6"
   ],
-  "plan_name": "pdfjs-worker-initialization",
+  "plan_name": "pdfparser-decode",
   "agent": "atlas",
   "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "先落 decode 红测合同与 fixture builder",
+      "session_id": "ses_2ad608a08ffe1FwAT4090cQmeb",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-04-03T09:22:44.513Z"
+    },
     "todo:2": {
       "task_key": "todo:2",
       "task_label": "2",
-      "task_title": "在 PdfParser 懒接入自动初始化并回归解析路径",
-      "session_id": "ses_2c6d5ab1bffeOaAj6oohujcgOv",
+      "task_title": "接入 pdfkit 依赖并建立内部 PDF 渲染服务骨架",
+      "session_id": "ses_2ad502622ffeP2nMR2PtxXcJW6",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-04-03T09:37:56.158Z"
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "完成逐页文本绘制、坐标回退与文本过滤规则",
+      "session_id": "ses_2ad45c3f6ffeYfwqDvhN6DfZyg",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-04-03T09:52:56.118Z"
+    },
+    "todo:4": {
+      "task_key": "todo:4",
+      "task_label": "4",
+      "task_title": "在 PdfParser 中实现 decode 校验与服务接线",
+      "session_id": "ses_2ad38b21cffealLtqa26QrGapE",
       "agent": "Sisyphus-Junior",
       "category": "quick",
-      "updated_at": "2026-03-29T10:37:16.418Z"
+      "updated_at": "2026-04-03T10:00:11.404Z"
+    },
+    "todo:5": {
+      "task_key": "todo:5",
+      "task_label": "5",
+      "task_title": "补 round-trip 集成回归，验证 decode 输出可被 encode 重新解析",
+      "session_id": "ses_2ad3321fbffeR6EzTJNm3ZFxNM",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-04-03T10:08:51.772Z"
+    },
+    "todo:6": {
+      "task_key": "todo:6",
+      "task_label": "6",
+      "task_title": "做最终收口：去重测试辅助并跑 lint / full test / build",
+      "session_id": "ses_2ad2833b6ffeFV6sONRVlzEXNu",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-04-03T10:21:12.174Z"
     },
     "final-wave:f1": {
       "task_key": "final-wave:f1",
       "task_label": "F1",
       "task_title": "Plan Compliance Audit — oracle",
-      "session_id": "ses_2c6d214f1ffexEslkJSsQ0GvNw",
-      "agent": "oracle",
-      "updated_at": "2026-03-29T10:51:11.229Z"
+      "session_id": "ses_2ad161e94ffeNfUfRa14oLpvZ6",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-03T10:38:25.655Z"
     }
   }
 }

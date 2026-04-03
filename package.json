@@ -15,7 +15,8 @@
   "dependencies": {
     "@hamster-note/document-parser": "^0.2.1",
     "@hamster-note/types": "^0.5.1",
-    "pdfjs-dist": "^5.4.530"
+    "pdfjs-dist": "^5.4.530",
+    "pdfkit": "^0.18.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
@@ -23,6 +24,7 @@
     "@pgrabovets/json-view": "^2.8.1",
     "@system-ui-js/development-base": "^0.1.2",
     "@types/jest": "^30.0.0",
+    "@types/pdfkit": "^0.17.5",
     "@typescript-eslint/eslint-plugin": "^8.50.0",
     "@typescript-eslint/parser": "^8.50.0",
     "eslint": "^9.39.2",

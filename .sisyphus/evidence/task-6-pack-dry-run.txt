@@ -1,0 +1,23 @@
+npm notice
+npm notice 📦  @hamster-note/pdf-parser@0.3.0
+npm notice Tarball Contents
+npm notice 1.1kB LICENSE
+npm notice 2.3kB dist/cli/generate.js
+npm notice 4.2kB dist/cli/generate.js.map
+npm notice 941.5kB dist/index.js
+npm notice 1.7MB dist/index.js.map
+npm notice 1.1MB dist/pdf.worker.min.mjs
+npm notice 15.4kB dist/runGeneration-DGKSMOfq.js
+npm notice 31.4kB dist/runGeneration-DGKSMOfq.js.map
+npm notice 2.0kB package.json
+npm notice Tarball Details
+npm notice name: @hamster-note/pdf-parser
+npm notice version: 0.3.0
+npm notice filename: hamster-note-pdf-parser-0.3.0.tgz
+npm notice package size: 980.0 kB
+npm notice unpacked size: 3.8 MB
+npm notice shasum: 172acefc1627151aaba22038f61afb916c03b887
+npm notice integrity: sha512-D9ahwiXBkvXpy[...]EtRQKAfr7vxvg==
+npm notice total files: 9
+npm notice
+hamster-note-pdf-parser-0.3.0.tgz

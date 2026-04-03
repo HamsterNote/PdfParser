@@ -1,0 +1,12 @@
+Task: top-level Task 2 - 接入 pdfkit 依赖并建立内部 PDF 渲染服务骨架
+Date: 2026-04-03
+
+No blocking errors occurred.
+
+Observed warnings / gotchas:
+- Yarn warned that `package-lock.json` also exists in the repository while Yarn is being used
+- Yarn emitted existing workspace-related warnings during dependency install
+
+Outcome:
+- Warnings were non-blocking
+- Required verification commands still passed successfully

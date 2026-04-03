@@ -1,0 +1,31 @@
+yarn run v1.22.19
+warning ../../../../../../package.json: No license field
+$ NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.js --runInBand src/__tests__/pdfParserDecode.test.ts
+(node:79156) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+  console.warn
+    Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+
+      at warn (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:25:54523)
+      at PartialEvaluator.fetchStandardFontData (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:28:520406)
+      at PartialEvaluator.translateFont (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:28:566341)
+
+PASS src/__tests__/pdfParserDecode.test.ts
+  PdfParser.decode
+    single page document decode
+      ✓ should return ArrayBuffer for single page document (12 ms)
+    multi-page document round-trip
+      ✓ should preserve page count after decode then encode (43 ms)
+      ✓ should preserve page sizes after decode then encode (5 ms)
+    text content round-trip
+      ✓ should preserve key text content after decode then encode (26 ms)
+    empty document error handling
+      ✓ should throw error when decoding empty document (6 ms)
+      ✓ should include cannot decode empty document in error message
+
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        0.981 s, estimated 1 s
+Ran all test suites matching src/__tests__/pdfParserDecode.test.ts.
+Done in 1.99s.

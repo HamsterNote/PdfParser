@@ -1,0 +1,85 @@
+yarn run v1.22.19
+warning ../../../../../../package.json: No license field
+$ NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.js
+(node:41688) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/__tests__/asTextItem.test.ts
+(node:41687) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/__tests__/mapTextDir.test.ts
+(node:41683) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/__tests__/mapTextContentToIntermediate.test.ts
+(node:41682) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:41686) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/__tests__/transformToViewport.test.ts
+(node:41685) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/__tests__/collectMetrics.test.ts
+(node:41684) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/__tests__/outline-mapping.test.ts
+PASS src/__tests__/validateRuleSet.test.ts
+PASS src/__tests__/runGeneration.test.ts
+PASS src/__tests__/scenarioFilter.test.ts
+PASS src/__tests__/pdfParserWorkerOverride.test.ts
+PASS src/__tests__/pdfDocumentRenderer.test.ts
+  ● Console
+
+    console.warn
+      Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+
+      at warn (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:25:54523)
+      at PartialEvaluator.fetchStandardFontData (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:28:520406)
+      at PartialEvaluator.translateFont (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:28:566341)
+
+    console.warn
+      Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+
+      at warn (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:25:54523)
+      at PartialEvaluator.fetchStandardFontData (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:28:520406)
+      at PartialEvaluator.translateFont (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:28:566341)
+
+PASS src/__tests__/pdfParserDecode.test.ts
+  ● Console
+
+    console.warn
+      Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+
+      at warn (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:25:54523)
+      at PartialEvaluator.fetchStandardFontData (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:28:520406)
+      at PartialEvaluator.translateFont (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:28:566341)
+
+PASS src/__tests__/factories.test.ts
+PASS src/__tests__/generateMockData.test.ts
+PASS src/__tests__/outputWriter.test.ts
+PASS src/__tests__/pdfParserDecode.integration.test.ts
+  ● Console
+
+    console.warn
+      Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+
+      at warn (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:25:54523)
+      at PartialEvaluator.fetchStandardFontData (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:28:520406)
+      at PartialEvaluator.translateFont (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:28:566341)
+
+    console.warn
+      Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+
+      at warn (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:25:54523)
+      at PartialEvaluator.fetchStandardFontData (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:28:520406)
+      at PartialEvaluator.translateFont (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:28:566341)
+
+PASS src/__tests__/generateTestCases.test.ts
+PASS src/__tests__/seededRandom.test.ts
+PASS src/__tests__/pdfParserIntegration.test.ts
+PASS src/__tests__/pdfjsWorkerInitialization.test.ts
+
+Test Suites: 20 passed, 20 total
+Tests:       191 passed, 191 total
+Snapshots:   0 total
+Time:        3.163 s
+Ran all test suites.
+Done in 3.57s.

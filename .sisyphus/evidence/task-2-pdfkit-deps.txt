@@ -1,0 +1,28 @@
+Task: top-level Task 2 - 接入 pdfkit 依赖并建立内部 PDF 渲染服务骨架
+Date: 2026-04-03
+
+Dependency changes:
+- runtime: pdfkit@^0.18.0
+- dev: @types/pdfkit@^0.17.5
+
+Modified files:
+- package.json
+- yarn.lock
+- src/services/pdfDocumentRenderer.ts (new)
+
+Implementation evidence:
+- `src/services/pdfDocumentRenderer.ts` creates `new PDFDocument({ autoFirstPage: false })`
+- Collects PDF stream output with `data`, `end`, and `error` listeners
+- Merges chunks with `Buffer.concat(chunks)`
+- Returns independent `ArrayBuffer` via `Uint8Array.from(buffer).buffer`
+- Keeps future page rendering in private `appendPlaceholderPages()` helper without implementing Task 3 drawing logic
+
+Verification results:
+- `yarn install --frozen-lockfile` => PASS
+- `yarn build:all` => PASS
+- `lsp_diagnostics src/services/pdfDocumentRenderer.ts` => 0 diagnostics
+- `lsp_diagnostics src/**/*.ts` => 0 errors
+
+Additional notes:
+- `src/index.ts` unchanged; renderer remains private
+- No existing service-specific tests found for `pdfDocumentRenderer`

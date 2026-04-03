@@ -28,6 +28,7 @@ import type {
   TextStyle
 } from 'pdfjs-dist/types/src/display/api'
 import { ensurePdfjsWorkerConfigured } from './pdfjsWorker'
+import { renderIntermediateDocumentToPdfBuffer } from './services/pdfDocumentRenderer'
 import './polyfills/dom-matrix.polyfill'
 import './polyfills/promise-withresolvers.polyfill'
 
@@ -67,9 +68,26 @@ export class PdfParser extends DocumentParser {
   }
 
   static async decode(
-    _intermediateDocument: IntermediateDocument
-  ): Promise<File | ArrayBuffer | undefined> {
-    return undefined
+    intermediateDocument: IntermediateDocument
+  ): Promise<ArrayBuffer> {
+    PdfParser.validateIntermediateDocumentForDecode(intermediateDocument)
+    const result =
+      await renderIntermediateDocumentToPdfBuffer(intermediateDocument)
+    return result
+  }
+
+  private static validateIntermediateDocumentForDecode(
+    document: IntermediateDocument
+  ): void {
+    if (!document) {
+      throw new Error('cannot decode empty document')
+    }
+    if (document.pageCount <= 0) {
+      throw new Error('cannot decode empty document')
+    }
+    if (document.pageNumbers.length === 0) {
+      throw new Error('cannot decode empty document')
+    }
   }
 
   private static async loadPdf(data: ArrayBuffer): Promise<PDFDocumentProxy> {
