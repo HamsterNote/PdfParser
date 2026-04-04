@@ -1,4 +1,4 @@
-import { PdfParser } from '../dist/browser.js'
+import { PdfParser } from '../dist/index.js'
 import { serializeIntermediate } from './demoDocumentSerialization.js'
 import { setPreviewMessage } from './demoPreview.js'
 import { createJsonOutputRenderer } from './demoJsonView.js'
@@ -21,6 +21,8 @@ const decodeStatusElement = document.querySelector(
 )
 
 let currentFile = null
+
+const samplePdfUrl = new URL('./assets/test_github.pdf', import.meta.url)
 
 const setStatus = (text) => {
   if (statusElement) {
@@ -120,7 +122,7 @@ const handleLoadSample = async () => {
   setPreviewNote('Preview will appear here.')
 
   try {
-    const response = await fetch('./assets/test_github.pdf')
+    const response = await fetch(samplePdfUrl)
     if (!response.ok) {
       throw new Error(`Failed to load sample PDF: ${response.status}`)
     }

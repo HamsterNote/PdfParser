@@ -28,7 +28,6 @@ import type {
   TextStyle
 } from 'pdfjs-dist/types/src/display/api'
 import { ensurePdfjsWorkerConfigured } from './pdfjsWorker'
-import { renderIntermediateDocumentToPdfBuffer } from './services/pdfDocumentRenderer'
 import './polyfills/dom-matrix.polyfill'
 import './polyfills/promise-withresolvers.polyfill'
 
@@ -71,6 +70,8 @@ export class PdfParser extends DocumentParser {
     intermediateDocument: IntermediateDocument
   ): Promise<ArrayBuffer> {
     PdfParser.validateIntermediateDocumentForDecode(intermediateDocument)
+    const { renderIntermediateDocumentToPdfBuffer } =
+      await import('./services/pdfDocumentRenderer')
     const result =
       await renderIntermediateDocumentToPdfBuffer(intermediateDocument)
     return result
