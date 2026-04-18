@@ -1,4 +1,3 @@
-// Mock for @hamster-note/types
 export type Number2 = {
   x: number
   y: number
@@ -10,6 +9,15 @@ export enum TextDir {
   RTL = 'rtl'
 }
 
+export type IntermediateTextPolygonPoint = [number, number]
+
+export type IntermediateTextPolygon = [
+  IntermediateTextPolygonPoint,
+  IntermediateTextPolygonPoint,
+  IntermediateTextPolygonPoint,
+  IntermediateTextPolygonPoint
+]
+
 export interface IntermediateTextSerialized {
   id: string
   content: string
@@ -18,16 +26,12 @@ export interface IntermediateTextSerialized {
   fontWeight: number
   italic: boolean
   color: string
-  width: number
-  height: number
+  polygon: IntermediateTextPolygon
   lineHeight: number
-  x: number
-  y: number
   ascent: number
   descent: number
   vertical?: boolean
   dir: TextDir
-  rotate: number
   skew: number
   isEOL: boolean
 }
@@ -40,16 +44,12 @@ export class IntermediateText implements IntermediateTextSerialized {
   fontWeight: number
   italic: boolean
   color: string
-  width: number
-  height: number
+  polygon: IntermediateTextPolygon
   lineHeight: number
-  x: number
-  y: number
   ascent: number
   descent: number
   vertical?: boolean
   dir: TextDir
-  rotate: number
   skew: number
   isEOL: boolean
 
@@ -63,16 +63,12 @@ export class IntermediateText implements IntermediateTextSerialized {
     fontWeight: text.fontWeight,
     italic: text.italic,
     color: text.color,
-    width: text.width,
-    height: text.height,
+    polygon: text.polygon,
     lineHeight: text.lineHeight,
-    x: text.x,
-    y: text.y,
     ascent: text.ascent,
     descent: text.descent,
     vertical: text.vertical,
     dir: text.dir,
-    rotate: text.rotate,
     skew: text.skew,
     isEOL: text.isEOL
   })
@@ -89,16 +85,12 @@ export class IntermediateText implements IntermediateTextSerialized {
     fontWeight,
     italic,
     color,
-    width,
-    height,
+    polygon,
     lineHeight,
-    x,
-    y,
     ascent,
     descent,
     vertical,
     dir,
-    rotate,
     skew,
     isEOL
   }: IntermediateTextSerialized) {
@@ -109,29 +101,80 @@ export class IntermediateText implements IntermediateTextSerialized {
     this.fontWeight = fontWeight
     this.italic = italic
     this.color = color
-    this.width = width
-    this.height = height
+    this.polygon = polygon
     this.lineHeight = lineHeight
-    this.x = x
-    this.y = y
     this.ascent = ascent
     this.descent = descent
     this.vertical = vertical
     this.dir = dir
-    this.rotate = rotate
     this.skew = skew
     this.isEOL = isEOL
+  }
+}
+
+export interface IntermediateParagraphSerialized {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  textIds: string[]
+}
+
+export class IntermediateParagraph implements IntermediateParagraphSerialized {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  textIds: string[]
+
+  static readonly serialize = (
+    paragraph: IntermediateParagraph
+  ): IntermediateParagraphSerialized => ({
+    id: paragraph.id,
+    x: paragraph.x,
+    y: paragraph.y,
+    width: paragraph.width,
+    height: paragraph.height,
+    textIds: paragraph.textIds
+  })
+
+  static readonly parse = (
+    data: IntermediateParagraphSerialized
+  ): IntermediateParagraph => new IntermediateParagraph(data)
+
+  constructor({
+    id,
+    x,
+    y,
+    width,
+    height,
+    textIds
+  }: IntermediateParagraphSerialized) {
+    this.id = id
+    this.x = x
+    this.y = y
+    this.width = width
+    this.height = height
+    this.textIds = [...textIds]
   }
 }
 
 export interface IntermediatePageSerialized {
   id: string
   texts: IntermediateTextSerialized[]
+  paragraphs?: IntermediateParagraphSerialized[]
   width: number
   height: number
   number: number
   thumbnail: string | undefined
 }
+
+type TextsGetterReturnType =
+  | Promise<IntermediateText[] | IntermediateTextSerialized[]>
+  | IntermediateText[]
+  | IntermediateTextSerialized[]
 
 type PageLoader = () => Promise<IntermediatePage>
 
@@ -146,17 +189,21 @@ interface IntermediatePageEntry {
 export class IntermediatePage {
   id: string
   texts: IntermediateText[]
+  paragraphs: IntermediateParagraph[]
   width: number
   height: number
   number: number
   private _thumbnail?: string
   private _getThumbnailFn?: (scale: number) => Promise<string | undefined>
+  private _getTextsFn?: () => TextsGetterReturnType
+  private textsLoaded: boolean
 
   static readonly serialize = (
     page: IntermediatePage
   ): IntermediatePageSerialized => ({
     id: page.id,
     texts: page.texts.map(IntermediateText.serialize),
+    paragraphs: page.paragraphs.map(IntermediateParagraph.serialize),
     width: page.width,
     height: page.height,
     number: page.number,
@@ -169,43 +216,76 @@ export class IntermediatePage {
 
   constructor({
     texts,
+    paragraphs,
     width,
     height,
     number,
     id,
-    thumbnail
-  }: Omit<IntermediatePageSerialized, 'texts'> & {
+    thumbnail,
+    getThumbnailFn,
+    getTextsFn
+  }: Omit<IntermediatePageSerialized, 'texts' | 'paragraphs'> & {
     texts: IntermediateText[] | IntermediateTextSerialized[]
+    paragraphs?: IntermediateParagraph[] | IntermediateParagraphSerialized[]
+  } & {
+    getThumbnailFn?: (scale: number) => Promise<string | undefined>
+    getTextsFn?: () => TextsGetterReturnType
   }) {
     this.id = id
     this.width = width
     this.height = height
     this.number = number
     this._thumbnail = thumbnail
+    this._getThumbnailFn = getThumbnailFn
+    this._getTextsFn = getTextsFn
     this.texts = texts.map(
-      (t): IntermediateText =>
-        t instanceof IntermediateText ? t : new IntermediateText(t)
+      (text): IntermediateText =>
+        text instanceof IntermediateText ? text : new IntermediateText(text)
     )
+    this.paragraphs = (paragraphs ?? []).map(
+      (paragraph): IntermediateParagraph =>
+        paragraph instanceof IntermediateParagraph
+          ? paragraph
+          : new IntermediateParagraph(paragraph)
+    )
+    this.textsLoaded = getTextsFn === undefined
   }
 
-  async getThumbnail(): Promise<string | undefined> {
+  async getThumbnail(scale: number = 1): Promise<string | undefined> {
+    if (this._getThumbnailFn) {
+      const thumbnail = await this._getThumbnailFn(scale)
+      this._thumbnail = thumbnail
+      return thumbnail
+    }
+
     return this._thumbnail
   }
 
   async getTexts(): Promise<IntermediateText[]> {
+    if (this._getTextsFn) {
+      const texts = await this._getTextsFn()
+      this.texts = texts.map(
+        (text): IntermediateText =>
+          text instanceof IntermediateText ? text : new IntermediateText(text)
+      )
+      this.textsLoaded = true
+      this._getTextsFn = undefined
+    }
+
     return this.texts
   }
 
   get hasLoadedTexts(): boolean {
-    return true
+    return this.textsLoaded
   }
 
   setGetThumbnail(fn: (scale: number) => Promise<string | undefined>): void {
     this._getThumbnailFn = fn
   }
 
-  setGetTexts(): void {
-    // Mock implementation
+  setGetTexts(fn: () => TextsGetterReturnType): void {
+    this._getTextsFn = fn
+    this.textsLoaded = false
   }
 }
 
@@ -216,10 +296,22 @@ export class IntermediatePageMap {
   constructor(entries?: IntermediatePageEntry[]) {
     if (entries) {
       for (const entry of entries) {
-        this.entryById.set(entry.id, entry)
-        this.entryByPageNumber.set(entry.pageNumber, entry)
+        this.registerEntry(entry)
       }
     }
+  }
+
+  private registerEntry(entry: IntermediatePageEntry): void {
+    this.entryById.set(entry.id, entry)
+    this.entryByPageNumber.set(entry.pageNumber, entry)
+  }
+
+  private resolve(entry: IntermediatePageEntry): Promise<IntermediatePage> {
+    if (!entry.cache) {
+      entry.cache = entry.loader()
+    }
+
+    return entry.cache
   }
 
   static readonly fromInfoList = (
@@ -236,6 +328,20 @@ export class IntermediatePageMap {
       size: info.size,
       loader: info.getData
     }))
+
+    return new IntermediatePageMap(entries)
+  }
+
+  static readonly fromSerialized = (
+    pages: IntermediatePageSerialized[]
+  ): IntermediatePageMap => {
+    const entries: IntermediatePageEntry[] = pages.map((page) => ({
+      id: page.id,
+      pageNumber: page.number,
+      size: { x: page.width, y: page.height },
+      loader: async () => IntermediatePage.parse(page)
+    }))
+
     return new IntermediatePageMap(entries)
   }
 
@@ -248,18 +354,20 @@ export class IntermediatePageMap {
     }[]
   ): IntermediatePageMap => IntermediatePageMap.fromInfoList(infoList)
 
-  getPageById = async (id: string): Promise<IntermediatePage | undefined> => {
+  static readonly makeBySerializedData = (
+    pages: IntermediatePageSerialized[]
+  ): IntermediatePageMap => IntermediatePageMap.fromSerialized(pages)
+
+  getPageById = (id: string): Promise<IntermediatePage> | undefined => {
     const entry = this.entryById.get(id)
-    if (!entry) return undefined
-    return entry.loader()
+    return entry ? this.resolve(entry) : undefined
   }
 
-  getPageByPageNumber = async (
+  getPageByPageNumber = (
     pageNumber: number
-  ): Promise<IntermediatePage | undefined> => {
+  ): Promise<IntermediatePage> | undefined => {
     const entry = this.entryByPageNumber.get(pageNumber)
-    if (!entry) return undefined
-    return entry.loader()
+    return entry ? this.resolve(entry) : undefined
   }
 
   getPageSizeByPageNumber = (pageNumber: number): Number2 | undefined => {
@@ -276,21 +384,23 @@ export class IntermediatePageMap {
   }
 
   getPages = async (): Promise<IntermediatePage[]> => {
-    const promises = this.pageNumbers.map((n) => this.getPageByPageNumber(n))
-    const pages = await Promise.all(promises)
-    return pages.filter((p): p is IntermediatePage => p !== undefined)
+    const pages = await Promise.all(
+      this.pageNumbers
+        .map((pageNumber) => this.getPageByPageNumber(pageNumber))
+        .filter((page): page is Promise<IntermediatePage> => page !== undefined)
+    )
+
+    return pages
   }
 
-  updatePage = (_page: IntermediatePage): void => {
-    // Mock implementation
-  }
-
-  static readonly fromSerialized = (): IntermediatePageMap => {
-    return new IntermediatePageMap()
-  }
-
-  static readonly makeBySerializedData = (): IntermediatePageMap => {
-    return new IntermediatePageMap()
+  updatePage = (page: IntermediatePage): void => {
+    this.registerEntry({
+      id: page.id,
+      pageNumber: page.number,
+      size: { x: page.width, y: page.height },
+      loader: async () => page,
+      cache: Promise.resolve(page)
+    })
   }
 }
 
@@ -340,15 +450,16 @@ export class IntermediateOutline extends IntermediateText {
   dest: IntermediateOutlineDest
 
   static readonly serialize = (
-    outline: IntermediateOutline
+    outline: IntermediateText
   ): IntermediateOutlineSerialized => ({
     ...IntermediateText.serialize(outline),
-    dest: outline.dest
+    dest: (outline as IntermediateOutline).dest
   })
 
   static readonly parse = (
-    data: IntermediateOutlineSerialized
-  ): IntermediateOutline => new IntermediateOutline(data)
+    data: IntermediateTextSerialized
+  ): IntermediateOutline =>
+    new IntermediateOutline(data as IntermediateOutlineSerialized)
 
   constructor(data: IntermediateOutlineSerialized) {
     super(data)
@@ -389,7 +500,9 @@ export class IntermediateDocument {
   }
 
   set pages(pages: IntermediatePage[]) {
-    // Mock implementation
+    this.pagesMap = IntermediatePageMap.fromSerialized(
+      pages.map(IntermediatePage.serialize)
+    )
   }
 
   get pageCount(): number {
@@ -401,16 +514,22 @@ export class IntermediateDocument {
   }
 
   getCover = async (): Promise<string | undefined> => {
-    return undefined
+    const firstPageNumber = this.pageNumbers[0]
+    const firstPage =
+      firstPageNumber === undefined
+        ? undefined
+        : await this.getPageByPageNumber(firstPageNumber)
+
+    return firstPage?.getThumbnail()
   }
 
-  getPageById = async (id: string): Promise<IntermediatePage | undefined> => {
+  getPageById = (id: string): Promise<IntermediatePage> | undefined => {
     return this.pagesMap.getPageById(id)
   }
 
-  getPageByPageNumber = async (
+  getPageByPageNumber = (
     pageNumber: number
-  ): Promise<IntermediatePage | undefined> => {
+  ): Promise<IntermediatePage> | undefined => {
     return this.pagesMap.getPageByPageNumber(pageNumber)
   }
 
@@ -426,6 +545,7 @@ export class IntermediateDocument {
     doc: IntermediateDocument
   ): Promise<IntermediateDocumentSerialized> => {
     const pages = await doc.pages
+
     return {
       id: doc.id,
       title: doc.title,
@@ -438,6 +558,7 @@ export class IntermediateDocument {
     data: IntermediateDocumentSerialized
   ): IntermediateDocument => {
     const pagesMap = IntermediatePageMap.fromSerialized(data.pages)
+
     return new IntermediateDocument({
       id: data.id,
       title: data.title,
@@ -447,7 +568,6 @@ export class IntermediateDocument {
   }
 }
 
-// Vector2 exports
 export class Vector2 {
   constructor(
     public readonly x: number,
@@ -455,5 +575,4 @@ export class Vector2 {
   ) {}
 }
 
-// Point2D is an alias for Number2 for type compatibility
-export { Number2 as Point2D }
+export type { Number2 as Point2D }

@@ -350,10 +350,10 @@
   dependencies:
     "@hamster-note/types" "^0.5.1"
 
-"@hamster-note/types@^0.5.1":
-  version "0.5.1"
-  resolved "https://registry.npmjs.org/@hamster-note/types/-/types-0.5.1.tgz"
-  integrity sha512-CwX6WovBePOXCIu++8Ig4npXXmkkp+7N4d8tknVxd4kn/c0Rw+0Wx2va4xUWP8R0oPlfe0Y9GJqEcKWShUUnkA==
+"@hamster-note/types@^0.7.0":
+  version "0.7.0"
+  resolved "https://registry.npmmirror.com/@hamster-note/types/-/types-0.7.0.tgz"
+  integrity sha512-BKC0R3kQ0gkHZFIopqygIaQMJogVmxLTolpMbuyr7dMOLYlwRS3/GwRRaMW8quvDUUA76wBnORg4CDAfnlSwAg==
 
 "@humanfs/core@^0.19.1":
   version "0.19.1"

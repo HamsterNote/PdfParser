@@ -4,6 +4,7 @@ import type {
   IntermediateOutlineDestPage,
   IntermediateOutlineDestPosition,
   IntermediateOutlineDestUrl,
+  IntermediateTextPolygon,
   Number2
 } from '@hamster-note/types'
 import {
@@ -16,8 +17,8 @@ import {
   TextDir
 } from '@hamster-note/types'
 import { PDFDocument, StandardFonts, type PDFFont, type PDFPage } from 'pdf-lib'
+import type { PageViewport } from 'pdfjs-dist/types/src/display/display_utils'
 import type {
-  PageViewport,
   PDFDocumentProxy,
   PDFPageProxy,
   TextContent,
@@ -34,6 +35,24 @@ type RenderableText = {
   lineHeight: number
   x: number
   y: number
+}
+
+type PdfPagePlan = {
+  background?: string
+  height: number
+  texts: RenderableText[]
+  width: number
+}
+
+type TextMetrics = {
+  width: number
+  height: number
+  ascent: number
+  descent: number
+  fontFamily: string
+  vertical?: boolean
+  fontSize: number
+  lineHeight: number
 }
 
 export class PdfParser extends DocumentParser {
@@ -86,11 +105,7 @@ export class PdfParser extends DocumentParser {
     const pdfDocument = await PDFDocument.create()
     const font = await pdfDocument.embedFont(StandardFonts.Helvetica)
     const supportedCodePoints = new Set(font.getCharacterSet())
-    const pagePlans: Array<{
-      height: number
-      texts: RenderableText[]
-      width: number
-    }> = []
+    const pagePlans: PdfPagePlan[] = []
     let hasRenderableContent = false
 
     for (const page of pages) {
@@ -98,20 +113,29 @@ export class PdfParser extends DocumentParser {
       const pageHeight = PdfParser.normalizeDimension(page.height)
       if (!pageWidth || !pageHeight) continue
 
+      const background = await PdfParser.resolvePageBackground(page)
+
       const texts = PdfParser.buildRenderableTexts(
         await PdfParser.resolvePageTexts(page),
         supportedCodePoints,
         pageWidth,
         pageHeight
       )
-      if (texts.length > 0) hasRenderableContent = true
-      pagePlans.push({ width: pageWidth, height: pageHeight, texts })
+      if (!texts) return undefined
+      if (texts.length > 0 || background) hasRenderableContent = true
+      pagePlans.push({
+        width: pageWidth,
+        height: pageHeight,
+        texts,
+        background
+      })
     }
 
     if (!hasRenderableContent || pagePlans.length === 0) return undefined
 
     for (const pagePlan of pagePlans) {
       const pdfPage = pdfDocument.addPage([pagePlan.width, pagePlan.height])
+      await PdfParser.drawBackgroundToPdfPage(pdfDocument, pdfPage, pagePlan)
       PdfParser.drawTextsToPdfPage(pdfPage, pagePlan.texts, font)
     }
 
@@ -153,12 +177,25 @@ export class PdfParser extends DocumentParser {
     }
   }
 
+  private static async resolvePageBackground(
+    page: IntermediatePage
+  ): Promise<string | undefined> {
+    try {
+      const thumbnail = await page.getThumbnail()
+      return typeof thumbnail === 'string' && thumbnail.trim()
+        ? thumbnail
+        : undefined
+    } catch {
+      return undefined
+    }
+  }
+
   private static buildRenderableTexts(
     texts: IntermediateText[],
     supportedCodePoints: Set<number>,
     pageWidth: number,
     pageHeight: number
-  ): RenderableText[] {
+  ): RenderableText[] | undefined {
     const renderableTexts: RenderableText[] = []
 
     for (const text of texts) {
@@ -168,26 +205,72 @@ export class PdfParser extends DocumentParser {
       )
       if (!/\S/.test(content)) continue
 
-      const fontSize = PdfParser.normalizeDimension(text.fontSize) ?? 12
-      const textHeight = PdfParser.normalizeDimension(text.height) ?? fontSize
-      const lineHeight =
-        PdfParser.normalizeDimension(text.lineHeight) ?? fontSize
-      const x = PdfParser.clamp(
-        Number.isFinite(text.x) ? text.x : 0,
-        0,
-        pageWidth
-      )
-      const y = PdfParser.mapTextYToPdf(
-        Number.isFinite(text.y) ? text.y : 0,
-        textHeight,
-        fontSize,
+      const metrics = PdfParser.resolveRenderableTextMetrics(
+        text,
+        pageWidth,
         pageHeight
       )
+      if (!metrics) return undefined
 
-      renderableTexts.push({ content, x, y, fontSize, lineHeight })
+      renderableTexts.push({ content, ...metrics })
     }
 
     return renderableTexts
+  }
+
+  private static resolveRenderableTextMetrics(
+    text: IntermediateText,
+    pageWidth: number,
+    pageHeight: number
+  ): Omit<RenderableText, 'content'> | undefined {
+    const fontSize = PdfParser.normalizeDimension(text.fontSize)
+    const lineHeight = PdfParser.normalizeDimension(text.lineHeight)
+    const bounds = PdfParser.getPolygonBounds(text.polygon)
+    const textHeight = bounds
+      ? PdfParser.normalizeDimension(bounds.maxY - bounds.minY)
+      : undefined
+
+    if (!fontSize || !lineHeight || !bounds || !textHeight) return undefined
+
+    return {
+      fontSize,
+      lineHeight,
+      x: PdfParser.clamp(bounds.minX, 0, pageWidth),
+      y: PdfParser.mapTextYToPdf(bounds.minY, textHeight, fontSize, pageHeight)
+    }
+  }
+
+  private static getPolygonBounds(
+    polygon: IntermediateTextPolygon | undefined
+  ):
+    | {
+        minX: number
+        maxX: number
+        minY: number
+        maxY: number
+      }
+    | undefined {
+    if (!Array.isArray(polygon) || polygon.length !== 4) return undefined
+
+    const xValues: number[] = []
+    const yValues: number[] = []
+
+    for (const point of polygon) {
+      if (!Array.isArray(point) || point.length !== 2) return undefined
+
+      const [x, y] = point
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return undefined
+
+      xValues.push(x)
+      yValues.push(y)
+    }
+
+    return {
+      minX: Math.min(...xValues),
+      maxX: Math.max(...xValues),
+      minY: Math.min(...yValues),
+      maxY: Math.max(...yValues)
+    }
   }
 
   private static drawTextsToPdfPage(
@@ -204,6 +287,46 @@ export class PdfParser extends DocumentParser {
         font
       })
     }
+  }
+
+  private static async drawBackgroundToPdfPage(
+    pdfDocument: PDFDocument,
+    pdfPage: PDFPage,
+    pagePlan: PdfPagePlan
+  ): Promise<void> {
+    if (!pagePlan.background) return
+
+    const image = await PdfParser.embedPageBackground(
+      pdfDocument,
+      pagePlan.background
+    )
+    if (!image) return
+
+    pdfPage.drawImage(image, {
+      x: 0,
+      y: 0,
+      width: pagePlan.width,
+      height: pagePlan.height
+    })
+  }
+
+  private static async embedPageBackground(
+    pdfDocument: PDFDocument,
+    background: string
+  ) {
+    try {
+      if (/^data:image\/jpe?g(;base64)?,/i.test(background)) {
+        return await pdfDocument.embedJpg(background)
+      }
+
+      if (/^data:image\/png(;base64)?,/i.test(background)) {
+        return await pdfDocument.embedPng(background)
+      }
+    } catch {
+      return undefined
+    }
+
+    return undefined
   }
 
   private static normalizeTextContent(
@@ -359,16 +482,17 @@ export class PdfParser extends DocumentParser {
         fontWeight: node.bold ? 700 : 500,
         italic: !!node.italic,
         color: 'transparent',
-        width: 0,
-        height: 0,
-        lineHeight: 0,
-        x: 0,
-        y: 0,
+        polygon: [
+          [0, 0],
+          [0, 0],
+          [0, 14],
+          [0, 14]
+        ],
+        lineHeight: 14,
         ascent: 0,
         descent: 0,
         vertical: false,
         dir: TextDir.LTR,
-        rotate: 0,
         skew: 0,
         isEOL: true,
         dest
@@ -528,35 +652,68 @@ export class PdfParser extends DocumentParser {
 
       const style = styles?.[textItem.fontName] || {}
       const id = `${pdfId}-page-${pageNumber}-text-${idx++}`
-      const { x, y } = PdfParser.transformToViewport(
-        textItem.transform,
+      const text = PdfParser.buildIntermediateText(
+        id,
+        textItem,
+        style,
         viewport
       )
-      const metrics = PdfParser.collectMetrics(textItem, style)
-      const text = new IntermediateText({
-        id,
-        content: String(textItem.str ?? ''),
-        fontSize: metrics.fontSize,
-        fontFamily: metrics.fontFamily,
-        fontWeight: 500,
-        italic: false,
-        color: 'transparent',
-        width: metrics.width,
-        height: metrics.height,
-        lineHeight: metrics.lineHeight,
-        x,
-        y,
-        ascent: metrics.ascent,
-        descent: metrics.descent,
-        vertical: metrics.vertical,
-        dir: PdfParser.mapTextDir(textItem.dir),
-        rotate: 0,
-        skew: 0,
-        isEOL: Boolean(textItem.hasEOL)
-      })
       items.push(text)
     }
     return items
+  }
+
+  private static buildIntermediateText(
+    id: string,
+    textItem: TextItem,
+    style: Partial<TextStyle>,
+    viewport: Pick<PageViewport, 'height' | 'transform'>
+  ): IntermediateText {
+    const metrics = PdfParser.collectMetrics(textItem, style)
+
+    return new IntermediateText({
+      id,
+      content: String(textItem.str ?? ''),
+      fontSize: metrics.fontSize,
+      fontFamily: metrics.fontFamily,
+      fontWeight: 500,
+      italic: false,
+      color: 'transparent',
+      polygon: PdfParser.buildTextPolygon(textItem, metrics, viewport),
+      lineHeight: metrics.lineHeight,
+      ascent: metrics.ascent,
+      descent: metrics.descent,
+      vertical: metrics.vertical,
+      dir: PdfParser.mapTextDir(textItem.dir),
+      skew: 0,
+      isEOL: Boolean(textItem.hasEOL)
+    })
+  }
+
+  private static buildTextPolygon(
+    textItem: TextItem,
+    metrics: TextMetrics,
+    viewport: Pick<PageViewport, 'height' | 'transform'>
+  ): IntermediateTextPolygon {
+    const { x, y } = PdfParser.transformToViewport(textItem.transform, viewport)
+    const width = Math.max(metrics.width, 0)
+    const height = Math.max(
+      metrics.height,
+      metrics.fontSize,
+      metrics.lineHeight,
+      0
+    )
+    const left = Number.isFinite(x) ? x : 0
+    const top = Number.isFinite(y) ? y : 0
+    const right = left + width
+    const bottom = top + height
+
+    return [
+      [left, top],
+      [right, top],
+      [right, bottom],
+      [left, bottom]
+    ]
   }
 
   private static asTextItem(
