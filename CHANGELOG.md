@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [UnReleased]
+
+### Added
+- 添加 `opsx-*` 实验性 OpenSpec 工作流命令与配套 skill，支持变更创建、推进、同步、验证与归档
+- 新增 `openspec` 配置与主 specs，补充 `pdf-decode-output`、`demo-decode-preview` 规范
+- 新增 `src/browser.ts` 与 `directImportNodeRegression` 回归测试
+
+### Changed
+- 优化 Demo 的 encode/decode 预览链路与状态展示
+- 调整 `PdfParser` / `pdfjsWorker` 相关实现、集成测试与 smoke test
+
 ## [0.4.1] - 2026-04-02
 
 ### Fixed
