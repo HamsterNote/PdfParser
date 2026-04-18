@@ -16,6 +16,7 @@
   "dependencies": {
     "@hamster-note/document-parser": "^0.2.1",
     "@hamster-note/types": "^0.5.1",
+    "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.4.530"
   },
   "devDependencies": {

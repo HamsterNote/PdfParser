@@ -1,13 +1,17 @@
-import { GlobalWorkerOptions } from 'pdfjs-dist'
-
 let cachedWorkerSrc: string | undefined
 
 type ImportMetaWithResolve = ImportMeta & {
   resolve?: (specifier: string) => string
 }
 
-const getConfiguredWorkerSrc = (): string | undefined => {
-  const workerSrc = GlobalWorkerOptions.workerSrc
+type PdfjsGlobalWorkerOptions = {
+  workerSrc: string
+}
+
+const getConfiguredWorkerSrc = (
+  globalWorkerOptions: PdfjsGlobalWorkerOptions
+): string | undefined => {
+  const workerSrc = globalWorkerOptions.workerSrc
   return typeof workerSrc === 'string' && workerSrc.length > 0
     ? workerSrc
     : undefined
@@ -28,19 +32,21 @@ const resolvePdfjsWorkerSrc = (): string => {
   )
 }
 
-export function ensurePdfjsWorkerConfigured(): string {
-  const configuredWorkerSrc = getConfiguredWorkerSrc()
+export function ensurePdfjsWorkerConfigured(
+  globalWorkerOptions: PdfjsGlobalWorkerOptions
+): string {
+  const configuredWorkerSrc = getConfiguredWorkerSrc(globalWorkerOptions)
   if (configuredWorkerSrc) {
     cachedWorkerSrc = configuredWorkerSrc
     return configuredWorkerSrc
   }
 
   if (cachedWorkerSrc) {
-    GlobalWorkerOptions.workerSrc = cachedWorkerSrc
+    globalWorkerOptions.workerSrc = cachedWorkerSrc
     return cachedWorkerSrc
   }
 
   cachedWorkerSrc = resolvePdfjsWorkerSrc()
-  GlobalWorkerOptions.workerSrc = cachedWorkerSrc
+  globalWorkerOptions.workerSrc = cachedWorkerSrc
   return cachedWorkerSrc
 }

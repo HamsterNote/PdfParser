@@ -56,7 +56,7 @@
       <section class="card">
         <div class="actions">
           <button type="button" id="encode-button" disabled>Encode PDF</button>
-          <button type="button" id="decode-button">Decode</button>
+          <button type="button" id="decode-button" disabled>Decode</button>
         </div>
       </section>
 
@@ -86,9 +86,16 @@
 
       <section class="card">
         <h3>Decode</h3>
-        <p class="decode-placeholder" data-role="decode-status">
-          Decode:
-          <span lang="zh-CN">当前版本暂不支持从中间结构重建 PDF。</span>
+        <p class="decode-status" data-role="decode-status">
+          Encode a PDF to enable decode preview.
+        </p>
+        <div class="preview decode-preview" data-role="decode-preview">
+          <span class="preview-placeholder">
+            Run Encode first, then click Decode to preview the restored PDF.
+          </span>
+        </div>
+        <p class="preview-note decode-preview-note" data-role="decode-preview-note">
+          Decode preview is only available for the latest successful encode result in this page session.
         </p>
       </section>
     </div>

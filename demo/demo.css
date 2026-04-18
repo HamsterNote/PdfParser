@@ -129,10 +129,22 @@ input[type='file'] {
   margin: 0;
 }
 
-.decode-placeholder {
+.decode-status {
   color: #6b7280;
   font-size: 14px;
-  margin: 0;
+  margin: 0 0 12px;
+}
+
+.decode-status.is-error {
+  color: #dc2626;
+}
+
+.decode-status[data-state='success'] {
+  color: #166534;
+}
+
+.decode-status[data-state='loading'] {
+  color: #1d4ed8;
 }
 
 .summary-content {
@@ -195,6 +207,14 @@ input[type='file'] {
 
 .preview-note.is-error {
   color: #dc2626;
+}
+
+.decode-preview {
+  min-height: 320px;
+}
+
+.decode-preview-note {
+  min-height: 16px;
 }
 
 .button-secondary {

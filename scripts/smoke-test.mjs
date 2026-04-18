@@ -1,15 +1,8 @@
-// 1. 注入 DOMMatrix polyfill
-if (typeof globalThis.DOMMatrix === 'undefined') {
-  globalThis.DOMMatrix = class DOMMatrix {
-    constructor(_init) {}
-  }
-}
-
-// 2. 动态导入 - 使用与 dist bundle 相同的导入方式
-const { GlobalWorkerOptions } = await import('pdfjs-dist')
+// 1. 直接导入 dist entry，验证无需预先导入 pdfjs-dist/DOMMatrix
 const { PdfParser } = await import('../dist/index.js')
+const { GlobalWorkerOptions } = await import('pdfjs-dist')
 
-// 3. 测试逻辑
+// 2. 测试逻辑
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'

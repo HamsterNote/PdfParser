@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeAll } from '@jest/globals'
 import { PdfParser } from '@PdfParser'
+import {
+  IntermediateDocument,
+  IntermediatePage,
+  IntermediatePageMap
+} from '@hamster-note/types'
 import { readFile } from 'fs/promises'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -226,6 +231,83 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
     it('获取负数页码的页面应该返回 undefined', async () => {
       const page = await document?.getPageByPageNumber(-1)
       expect(page).toBeUndefined()
+    })
+  })
+
+  describe('decode 二进制恢复', () => {
+    it('应该返回可重建 PDF 的 ArrayBuffer', async () => {
+      expect(document).toBeDefined()
+
+      const decoded = await PdfParser.decode(document as IntermediateDocument)
+
+      expect(decoded).toBeInstanceOf(ArrayBuffer)
+      expect(decoded?.byteLength).toBeGreaterThan(0)
+
+      const decodedBytes = new Uint8Array(decoded as ArrayBuffer)
+      expect(Array.from(decodedBytes.subarray(0, 4))).toEqual([
+        0x25, 0x50, 0x44, 0x46
+      ])
+
+      const reparsed = await PdfParser.encode(decoded as ArrayBuffer)
+      expect(reparsed?.pageCount).toBe(document?.pageCount)
+    })
+
+    it('对缺少可用页面内容的文档应该返回 undefined', async () => {
+      const detachedDocument = new IntermediateDocument({
+        id: 'detached-doc',
+        title: 'Detached',
+        pagesMap: IntermediatePageMap.makeByInfoList([
+          {
+            id: 'detached-page-1',
+            pageNumber: 1,
+            size: { x: 200, y: 300 },
+            getData: async () =>
+              new IntermediatePage({
+                id: 'detached-page-1',
+                number: 1,
+                width: 200,
+                height: 300,
+                texts: [],
+                thumbnail: undefined
+              })
+          }
+        ])
+      })
+
+      const decoded = await PdfParser.decode(detachedDocument)
+
+      expect(decoded).toBeUndefined()
+    })
+
+    it('多次 decode 的结果应该互不污染', async () => {
+      expect(document).toBeDefined()
+
+      const firstDecoded = (await PdfParser.decode(
+        document as IntermediateDocument
+      )) as ArrayBuffer
+      const secondDecoded = (await PdfParser.decode(
+        document as IntermediateDocument
+      )) as ArrayBuffer
+
+      expect(firstDecoded).not.toBe(secondDecoded)
+
+      const firstView = new Uint8Array(firstDecoded)
+      const secondView = new Uint8Array(secondDecoded)
+      const originalFirstByte = secondView[0]
+
+      firstView[0] = originalFirstByte === 0 ? 1 : 0
+
+      expect(secondView[0]).toBe(originalFirstByte)
+
+      const thirdDecoded = (await PdfParser.decode(
+        document as IntermediateDocument
+      )) as ArrayBuffer
+      const thirdView = new Uint8Array(thirdDecoded)
+
+      expect(thirdView[0]).toBe(0x25)
+      expect(Array.from(thirdView.subarray(0, 4))).toEqual([
+        0x25, 0x50, 0x44, 0x46
+      ])
     })
   })
 })

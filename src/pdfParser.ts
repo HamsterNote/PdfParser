@@ -15,14 +15,11 @@ import {
   IntermediateText,
   TextDir
 } from '@hamster-note/types'
-import {
-  getDocument,
-  type PageViewport,
-  type PDFDocumentProxy,
-  type PDFPageProxy,
-  Util
-} from 'pdfjs-dist'
+import { PDFDocument, StandardFonts, type PDFFont, type PDFPage } from 'pdf-lib'
 import type {
+  PageViewport,
+  PDFDocumentProxy,
+  PDFPageProxy,
   TextContent,
   TextItem,
   TextStyle
@@ -31,7 +28,21 @@ import { ensurePdfjsWorkerConfigured } from './pdfjsWorker'
 import './polyfills/dom-matrix.polyfill'
 import './polyfills/promise-withresolvers.polyfill'
 
+type RenderableText = {
+  content: string
+  fontSize: number
+  lineHeight: number
+  x: number
+  y: number
+}
+
 export class PdfParser extends DocumentParser {
+  private static pdfjsModulePromise:
+    | Promise<
+        Pick<typeof import('pdfjs-dist'), 'getDocument' | 'GlobalWorkerOptions'>
+      >
+    | undefined
+
   async encode(_input: ParserInput): Promise<IntermediateDocument> {
     const arrayBuffer = await DocumentParser.toArrayBuffer(_input)
     const doc = await PdfParser.encode(arrayBuffer)
@@ -67,18 +78,188 @@ export class PdfParser extends DocumentParser {
   }
 
   static async decode(
-    _intermediateDocument: IntermediateDocument
+    intermediateDocument: IntermediateDocument
   ): Promise<File | ArrayBuffer | undefined> {
-    return undefined
+    const pages = await PdfParser.resolveIntermediatePages(intermediateDocument)
+    if (pages.length === 0) return undefined
+
+    const pdfDocument = await PDFDocument.create()
+    const font = await pdfDocument.embedFont(StandardFonts.Helvetica)
+    const supportedCodePoints = new Set(font.getCharacterSet())
+    const pagePlans: Array<{
+      height: number
+      texts: RenderableText[]
+      width: number
+    }> = []
+    let hasRenderableContent = false
+
+    for (const page of pages) {
+      const pageWidth = PdfParser.normalizeDimension(page.width)
+      const pageHeight = PdfParser.normalizeDimension(page.height)
+      if (!pageWidth || !pageHeight) continue
+
+      const texts = PdfParser.buildRenderableTexts(
+        await PdfParser.resolvePageTexts(page),
+        supportedCodePoints,
+        pageWidth,
+        pageHeight
+      )
+      if (texts.length > 0) hasRenderableContent = true
+      pagePlans.push({ width: pageWidth, height: pageHeight, texts })
+    }
+
+    if (!hasRenderableContent || pagePlans.length === 0) return undefined
+
+    for (const pagePlan of pagePlans) {
+      const pdfPage = pdfDocument.addPage([pagePlan.width, pagePlan.height])
+      PdfParser.drawTextsToPdfPage(pdfPage, pagePlan.texts, font)
+    }
+
+    const pdfBytes = await pdfDocument.save()
+    return Uint8Array.from(pdfBytes).buffer
+  }
+
+  private static async resolveIntermediatePages(
+    intermediateDocument: IntermediateDocument
+  ): Promise<IntermediatePage[]> {
+    try {
+      const pages = await intermediateDocument.pages
+      if (Array.isArray(pages)) {
+        return pages
+      }
+    } catch {
+      // Ignore and fall back to page number based resolution.
+    }
+
+    const pages: IntermediatePage[] = []
+    for (const pageNumber of intermediateDocument.pageNumbers) {
+      const page = await intermediateDocument.getPageByPageNumber(pageNumber)
+      if (page) pages.push(page)
+    }
+    return pages
+  }
+
+  private static async resolvePageTexts(
+    page: IntermediatePage
+  ): Promise<IntermediateText[]> {
+    if (Array.isArray(page.texts)) {
+      return page.texts
+    }
+
+    try {
+      return (await page.getTexts()) ?? []
+    } catch {
+      return []
+    }
+  }
+
+  private static buildRenderableTexts(
+    texts: IntermediateText[],
+    supportedCodePoints: Set<number>,
+    pageWidth: number,
+    pageHeight: number
+  ): RenderableText[] {
+    const renderableTexts: RenderableText[] = []
+
+    for (const text of texts) {
+      const content = PdfParser.normalizeTextContent(
+        String(text.content ?? ''),
+        supportedCodePoints
+      )
+      if (!/\S/.test(content)) continue
+
+      const fontSize = PdfParser.normalizeDimension(text.fontSize) ?? 12
+      const textHeight = PdfParser.normalizeDimension(text.height) ?? fontSize
+      const lineHeight =
+        PdfParser.normalizeDimension(text.lineHeight) ?? fontSize
+      const x = PdfParser.clamp(
+        Number.isFinite(text.x) ? text.x : 0,
+        0,
+        pageWidth
+      )
+      const y = PdfParser.mapTextYToPdf(
+        Number.isFinite(text.y) ? text.y : 0,
+        textHeight,
+        fontSize,
+        pageHeight
+      )
+
+      renderableTexts.push({ content, x, y, fontSize, lineHeight })
+    }
+
+    return renderableTexts
+  }
+
+  private static drawTextsToPdfPage(
+    pdfPage: PDFPage,
+    texts: RenderableText[],
+    font: PDFFont
+  ): void {
+    for (const text of texts) {
+      pdfPage.drawText(text.content, {
+        x: text.x,
+        y: text.y,
+        size: text.fontSize,
+        lineHeight: text.lineHeight,
+        font
+      })
+    }
+  }
+
+  private static normalizeTextContent(
+    text: string,
+    supportedCodePoints: Set<number>
+  ): string {
+    return Array.from(text)
+      .map((character) => {
+        if (character === '\n' || character === '\r') return ' '
+        const codePoint = character.codePointAt(0)
+        if (codePoint === undefined) return ''
+        return supportedCodePoints.has(codePoint) ? character : '?'
+      })
+      .join('')
+  }
+
+  private static normalizeDimension(value: number): number | undefined {
+    return Number.isFinite(value) && value > 0 ? value : undefined
+  }
+
+  private static clamp(value: number, min: number, max: number): number {
+    if (!Number.isFinite(value)) return min
+    if (value < min) return min
+    if (value > max) return max
+    return value
+  }
+
+  private static mapTextYToPdf(
+    topY: number,
+    textHeight: number,
+    fontSize: number,
+    pageHeight: number
+  ): number {
+    const candidateY = pageHeight - topY - textHeight
+    const maxY = Math.max(0, pageHeight - fontSize)
+    return PdfParser.clamp(candidateY, 0, maxY)
   }
 
   private static async loadPdf(data: ArrayBuffer): Promise<PDFDocumentProxy> {
-    ensurePdfjsWorkerConfigured()
+    const { getDocument, GlobalWorkerOptions } =
+      await PdfParser.loadPdfjsModule()
+    ensurePdfjsWorkerConfigured(GlobalWorkerOptions)
     const dataCopy = data.slice(0)
     const loadingTask = getDocument({
       data: new Uint8Array(dataCopy)
     } as Parameters<typeof getDocument>[0])
     return loadingTask.promise
+  }
+
+  private static loadPdfjsModule(): Promise<
+    Pick<typeof import('pdfjs-dist'), 'getDocument' | 'GlobalWorkerOptions'>
+  > {
+    if (!PdfParser.pdfjsModulePromise) {
+      PdfParser.pdfjsModulePromise = import('pdfjs-dist')
+    }
+    return PdfParser.pdfjsModulePromise
   }
 
   private static async buildPageInfoList(
@@ -399,11 +580,31 @@ export class PdfParser extends DocumentParser {
     const baseTransform = Array.isArray(transform)
       ? transform
       : [1, 0, 0, 1, 0, 0]
-    const transformed = Util.transform(viewport.transform, baseTransform)
+    const transformed = PdfParser.multiplyAffineTransforms(
+      viewport.transform,
+      baseTransform
+    )
     return {
       x: Number.isFinite(transformed[4]) ? transformed[4] : 0,
       y: Number.isFinite(transformed[5]) ? transformed[5] : 0
     }
+  }
+
+  private static multiplyAffineTransforms(
+    left: number[],
+    right: number[]
+  ): [number, number, number, number, number, number] {
+    const [a1, b1, c1, d1, e1, f1] = left
+    const [a2, b2, c2, d2, e2, f2] = right
+
+    return [
+      a1 * a2 + c1 * b2,
+      b1 * a2 + d1 * b2,
+      a1 * c2 + c1 * d2,
+      b1 * c2 + d1 * d2,
+      a1 * e2 + c1 * f2 + e1,
+      b1 * e2 + d1 * f2 + f1
+    ]
   }
 
   private static collectMetrics(

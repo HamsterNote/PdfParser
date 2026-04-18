@@ -25,6 +25,22 @@ export function setPreviewMessage(preview, message, isError = false) {
   preview.append(createPlaceholderElement(preview, message))
 }
 
+export function renderPreviewFrame(preview, frameUrl, title = 'PDF preview') {
+  if (!preview) {
+    return
+  }
+
+  resetPreview(preview)
+  preview.classList.remove(PREVIEW_ERROR_CLASS)
+
+  const frame = getPreviewDocument(preview).createElement('iframe')
+  frame.className = 'preview-frame'
+  frame.src = frameUrl
+  frame.title = title
+
+  preview.append(frame)
+}
+
 export function renderPreviewImage(preview, imageUrl) {
   if (!preview) {
     return

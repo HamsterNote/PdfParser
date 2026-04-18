@@ -48,7 +48,9 @@ describe('ensurePdfjsWorkerConfigured', () => {
       await loadEnsurePdfjsWorkerConfigured()
     GlobalWorkerOptions.workerSrc = ''
 
-    expect(ensurePdfjsWorkerConfigured()).toBe(browserWorkerSrc)
+    expect(ensurePdfjsWorkerConfigured(GlobalWorkerOptions)).toBe(
+      browserWorkerSrc
+    )
     expect(GlobalWorkerOptions.workerSrc).toBe(browserWorkerSrc)
   })
 
@@ -57,7 +59,7 @@ describe('ensurePdfjsWorkerConfigured', () => {
       await loadEnsurePdfjsWorkerConfigured()
     GlobalWorkerOptions.workerSrc = ''
 
-    expect(ensurePdfjsWorkerConfigured()).toBe(nodeWorkerSrc)
+    expect(ensurePdfjsWorkerConfigured(GlobalWorkerOptions)).toBe(nodeWorkerSrc)
     expect(GlobalWorkerOptions.workerSrc).toBe(nodeWorkerSrc)
   })
 
@@ -68,7 +70,9 @@ describe('ensurePdfjsWorkerConfigured', () => {
       await loadEnsurePdfjsWorkerConfigured()
     GlobalWorkerOptions.workerSrc = preconfiguredWorkerSrc
 
-    expect(ensurePdfjsWorkerConfigured()).toBe(preconfiguredWorkerSrc)
+    expect(ensurePdfjsWorkerConfigured(GlobalWorkerOptions)).toBe(
+      preconfiguredWorkerSrc
+    )
     expect(GlobalWorkerOptions.workerSrc).toBe(preconfiguredWorkerSrc)
   })
 
@@ -77,8 +81,8 @@ describe('ensurePdfjsWorkerConfigured', () => {
       await loadEnsurePdfjsWorkerConfigured()
     GlobalWorkerOptions.workerSrc = ''
 
-    const firstWorkerSrc = ensurePdfjsWorkerConfigured()
-    const secondWorkerSrc = ensurePdfjsWorkerConfigured()
+    const firstWorkerSrc = ensurePdfjsWorkerConfigured(GlobalWorkerOptions)
+    const secondWorkerSrc = ensurePdfjsWorkerConfigured(GlobalWorkerOptions)
 
     expect(secondWorkerSrc).toBe(firstWorkerSrc)
     expect(GlobalWorkerOptions.workerSrc).toBe(firstWorkerSrc)
