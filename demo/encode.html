@@ -74,29 +74,33 @@
         <div class="output" data-role="output">Click "Load Sample PDF" or upload a PDF file, then click "Encode PDF".</div>
       </section>
 
-      <section class="card">
-        <h3>Page Preview</h3>
-        <div class="preview" data-role="preview">
-          <span class="preview-placeholder">Preview will appear here.</span>
-        </div>
-        <p class="preview-note" data-role="preview-note">
-          Preview shows the first page of the PDF.
-        </p>
-      </section>
+      <section class="preview-grid" aria-label="PDF previews">
+        <section class="card preview-card">
+          <h3>Page Preview</h3>
+          <div class="preview" data-role="preview">
+            <span class="preview-placeholder">
+              Original PDF preview will appear here.
+            </span>
+          </div>
+          <p class="preview-note" data-role="preview-note">
+            Page Preview shows the original PDF in this session.
+          </p>
+        </section>
 
-      <section class="card">
-        <h3>Decode</h3>
-        <p class="decode-status" data-role="decode-status">
-          Encode a PDF to enable decode preview.
-        </p>
-        <div class="preview decode-preview" data-role="decode-preview">
-          <span class="preview-placeholder">
-            Run Encode first, then click Decode to preview the restored PDF.
-          </span>
-        </div>
-        <p class="preview-note decode-preview-note" data-role="decode-preview-note">
-          Decode preview is only available for the latest successful encode result in this page session.
-        </p>
+        <section class="card preview-card decode-card">
+          <h3>Decode</h3>
+          <p class="decode-status" data-role="decode-status">
+            Encode a PDF to enable decode preview.
+          </p>
+          <div class="preview decode-preview" data-role="decode-preview">
+            <span class="preview-placeholder">
+              Run Encode first, then click Decode to preview the restored PDF.
+            </span>
+          </div>
+          <p class="preview-note decode-preview-note" data-role="decode-preview-note">
+            Decode preview is only available for the latest successful encode result in this page session.
+          </p>
+        </section>
       </section>
     </div>
     <script type="module" src="./demo.js"></script>

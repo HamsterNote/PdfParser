@@ -3,6 +3,60 @@ import { serializeIntermediate } from './demoDocumentSerialization.js'
 import { renderPreviewFrame, setPreviewMessage } from './demoPreview.js'
 import { createJsonOutputRenderer } from './demoJsonView.js'
 
+const DEMO_FONT_MANIFEST_URL =
+  '../node_modules/@fontsource/noto-sans-sc/400.css'
+const DEMO_FONT_FILES_BASE_URL =
+  '../node_modules/@fontsource/noto-sans-sc/files/'
+const DEMO_FALLBACK_FONT_URL =
+  '../node_modules/@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-400-normal.woff'
+
+const extractFontUrlsFromCss = (cssText) => {
+  const matches = cssText.matchAll(/url\(\.\/files\/([^)]+\.woff)\)/g)
+  const urls = []
+
+  for (const match of matches) {
+    const fileName = match[1]
+    if (!fileName) {
+      continue
+    }
+
+    const url = `${DEMO_FONT_FILES_BASE_URL}${fileName}`
+    if (!urls.includes(url)) {
+      urls.push(url)
+    }
+  }
+
+  return urls
+}
+
+const configureDemoDecodeFonts = async () => {
+  try {
+    const response = await fetch(DEMO_FONT_MANIFEST_URL)
+    if (!response.ok) {
+      throw new Error(`Failed to load font manifest: ${response.status}`)
+    }
+
+    const cssText = await response.text()
+    const fontUrls = extractFontUrlsFromCss(cssText)
+
+    if (fontUrls.length === 0) {
+      throw new Error('No decode font files found in manifest.')
+    }
+
+    PdfParser.configureDecodeFont(fontUrls.map((url) => ({ url })))
+  } catch (error) {
+    console.warn(
+      'Failed to configure full decode font set, falling back.',
+      error
+    )
+    PdfParser.configureDecodeFont({
+      url: DEMO_FALLBACK_FONT_URL
+    })
+  }
+}
+
+const decodeFontSetupPromise = configureDemoDecodeFonts()
+
 const loadSampleButton = document.getElementById('demo-load-sample')
 const fileInput = document.getElementById('pdf-file-input')
 const encodeButton = document.getElementById('encode-button')
@@ -28,6 +82,7 @@ const decodePreviewNoteElement = document.querySelector(
 
 let currentFile = null
 let currentIntermediateDocument = null
+let currentPagePreviewUrl = null
 let currentDecodePreviewUrl = null
 let activeDecodeContextId = 0
 
@@ -62,7 +117,8 @@ const setSummary = (html) => {
 }
 
 const resetPreview = () => {
-  setPreviewMessage(previewElement, 'Preview will appear here.')
+  revokePagePreviewUrl()
+  setPreviewMessage(previewElement, 'Original PDF preview will appear here.')
 }
 
 const setDecodeButtonEnabled = (enabled) => {
@@ -78,6 +134,15 @@ const revokeDecodePreviewUrl = () => {
 
   URL.revokeObjectURL(currentDecodePreviewUrl)
   currentDecodePreviewUrl = null
+}
+
+const revokePagePreviewUrl = () => {
+  if (!currentPagePreviewUrl) {
+    return
+  }
+
+  URL.revokeObjectURL(currentPagePreviewUrl)
+  currentPagePreviewUrl = null
 }
 
 const setDecodeState = ({
@@ -158,6 +223,23 @@ const createDecodePreviewUrl = (decoded) => {
   return URL.createObjectURL(blob)
 }
 
+const renderPagePreview = (file) => {
+  if (!file || !(file instanceof Blob)) {
+    resetPreview()
+    setPreviewNote('Page Preview shows the original PDF in this session.')
+    return
+  }
+
+  revokePagePreviewUrl()
+  currentPagePreviewUrl = URL.createObjectURL(file)
+  renderPreviewFrame(
+    previewElement,
+    currentPagePreviewUrl,
+    'Original PDF preview'
+  )
+  setPreviewNote('Showing the original PDF loaded in this page session.')
+}
+
 const enableEncodeButton = () => {
   if (encodeButton) {
     encodeButton.disabled = false
@@ -176,14 +258,6 @@ const escapeHtml = (text) => {
   return div.innerHTML
 }
 
-const getPagePreviewText = (page) => {
-  if (typeof page?.previewText !== 'string') {
-    return ''
-  }
-
-  return page.previewText
-}
-
 const renderSummary = (serialized) => {
   const pageCount = Number.isFinite(serialized.pageCount)
     ? serialized.pageCount
@@ -198,34 +272,11 @@ const renderSummary = (serialized) => {
   `)
 }
 
-const renderFirstPagePreview = (serialized) => {
-  if (!Array.isArray(serialized.pages) || serialized.pages.length === 0) {
-    setPreviewMessage(previewElement, 'No pages available in encoded result.')
-    setPreviewNote('First page preview unavailable.')
-    return
-  }
-
-  const firstPage = serialized.pages[0]
-  const previewText = getPagePreviewText(firstPage)
-
-  if (serialized.coverAvailable) {
-    setPreviewMessage(previewElement, 'Cover available in encoded result.')
-  } else {
-    setPreviewMessage(previewElement, 'Cover unavailable.')
-  }
-
-  if (previewText.length > 0) {
-    setPreviewNote(`First page preview: ${previewText.substring(0, 200)}...`)
-  } else {
-    setPreviewNote('First page text preview unavailable.')
-  }
-}
-
 const handleLoadSample = async () => {
   setStatus('Loading sample...')
   setError('')
   resetPreview()
-  setPreviewNote('Preview will appear here.')
+  setPreviewNote('Original PDF preview will appear here.')
   resetDecodeContext({
     statusText: 'Loading a sample cleared the previous decode result.',
     previewMessage:
@@ -242,6 +293,7 @@ const handleLoadSample = async () => {
     currentFile = new File([blob], 'test_github.pdf', {
       type: 'application/pdf'
     })
+    renderPagePreview(currentFile)
     setStatus('Sample loaded')
     enableEncodeButton()
   } catch (error) {
@@ -261,7 +313,7 @@ const handleFileSelect = (event) => {
 
   setError('')
   resetPreview()
-  setPreviewNote('Preview will appear here.')
+  setPreviewNote('Original PDF preview will appear here.')
   resetDecodeContext({
     statusText: 'Selecting a file cleared the previous decode result.',
     previewMessage:
@@ -280,6 +332,7 @@ const handleFileSelect = (event) => {
   }
 
   currentFile = file
+  renderPagePreview(file)
   setStatus('File selected')
   enableEncodeButton()
 }
@@ -305,8 +358,7 @@ const handleEncode = async () => {
   setStatus('Encoding...')
   setError('')
   jsonRenderer.renderMessage('Working...')
-  setPreviewMessage(previewElement, 'Encoding...')
-  setPreviewNote('Encoding PDF...')
+  setPreviewNote('Showing the original PDF while encode is running.')
 
   try {
     const arrayBuffer = await currentFile.arrayBuffer()
@@ -329,7 +381,6 @@ const handleEncode = async () => {
     jsonRenderer.renderData(serialized)
 
     renderSummary(serialized)
-    renderFirstPagePreview(serialized)
     activateDecodeContext(intermediate)
 
     setStatus('Encode ready')
@@ -342,8 +393,10 @@ const handleEncode = async () => {
     jsonRenderer.renderMessage(message)
     setStatus('Encode failed')
     setError('Encoding failed. See JSON output for details.')
-    setPreviewMessage(previewElement, 'Encoding failed.', true)
-    setPreviewNote('Preview unavailable due to encode errors.', true)
+    setPreviewNote(
+      'Original PDF preview remains available. Encode failed.',
+      true
+    )
     setDecodeState({
       name: 'idle',
       statusText:
@@ -384,6 +437,7 @@ const handleDecode = async () => {
   })
 
   try {
+    await decodeFontSetupPromise
     const decoded = await PdfParser.decode(intermediateDocument)
 
     if (
@@ -451,10 +505,12 @@ const handleDecode = async () => {
 resetDecodeContext()
 
 window.addEventListener('pagehide', () => {
+  revokePagePreviewUrl()
   revokeDecodePreviewUrl()
 })
 
 window.addEventListener('beforeunload', () => {
+  revokePagePreviewUrl()
   revokeDecodePreviewUrl()
 })
 

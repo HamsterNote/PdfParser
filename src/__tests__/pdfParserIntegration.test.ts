@@ -117,6 +117,7 @@ const PNG_DATA_URL =
 describe('PdfParser Integration Tests - test_github.pdf', () => {
   let pdfBuffer: ArrayBuffer
   let document: Awaited<ReturnType<typeof PdfParser.encode>>
+  let cjkFontBuffer: ArrayBuffer
 
   beforeAll(async () => {
     const pdfPath = path.resolve(__dirname, 'test_github.pdf')
@@ -124,6 +125,15 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
     pdfBuffer = buffer.buffer.slice(
       buffer.byteOffset,
       buffer.byteOffset + buffer.byteLength
+    )
+    const cjkFontPath = path.resolve(
+      __dirname,
+      '../../node_modules/@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-400-normal.woff'
+    )
+    const cjkFont = await readFile(cjkFontPath)
+    cjkFontBuffer = cjkFont.buffer.slice(
+      cjkFont.byteOffset,
+      cjkFont.byteOffset + cjkFont.byteLength
     )
     document = await PdfParser.encode(pdfBuffer)
   }, 30000)
@@ -384,6 +394,64 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
 
       expect(decoded).toBeInstanceOf(ArrayBuffer)
       expect(decoded?.byteLength).toBeGreaterThan(0)
+    })
+
+    it('配置中文字体后 decode 应保留中文文本', async () => {
+      const structuredDocument = createStructuredDocument([
+        createRenderableText({
+          content: '中文测试'
+        })
+      ])
+
+      PdfParser.configureDecodeFont({
+        data: cjkFontBuffer
+      })
+
+      try {
+        const decoded = await PdfParser.decode(structuredDocument)
+
+        expect(decoded).toBeInstanceOf(ArrayBuffer)
+        expect(decoded?.byteLength).toBeGreaterThan(0)
+
+        const reparsed = await PdfParser.encode(decoded as ArrayBuffer)
+        const reparsedPage = await reparsed?.getPageByPageNumber(1)
+        const reparsedText =
+          reparsedPage?.texts?.map((t) => t.content).join('') ?? ''
+
+        expect(reparsedText).toContain('中文测试')
+      } finally {
+        PdfParser.configureDecodeFont()
+      }
+    })
+
+    it('配置中文字体后 decode 应保留中英混排文本', async () => {
+      const structuredDocument = createStructuredDocument([
+        createRenderableText({
+          content: 'Hello 世界 PDF'
+        })
+      ])
+
+      PdfParser.configureDecodeFont({
+        data: cjkFontBuffer
+      })
+
+      try {
+        const decoded = await PdfParser.decode(structuredDocument)
+
+        expect(decoded).toBeInstanceOf(ArrayBuffer)
+        expect(decoded?.byteLength).toBeGreaterThan(0)
+
+        const reparsed = await PdfParser.encode(decoded as ArrayBuffer)
+        const reparsedPage = await reparsed?.getPageByPageNumber(1)
+        const reparsedText =
+          reparsedPage?.texts?.map((t) => t.content).join('') ?? ''
+
+        expect(reparsedText).toContain('Hello')
+        expect(reparsedText).toContain('世界')
+        expect(reparsedText).toContain('PDF')
+      } finally {
+        PdfParser.configureDecodeFont()
+      }
     })
 
     it('对缺少可用页面内容的文档应该返回 undefined', async () => {

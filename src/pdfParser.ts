@@ -16,6 +16,7 @@ import {
   IntermediateText,
   TextDir
 } from '@hamster-note/types'
+import fontkit from '@pdf-lib/fontkit'
 import { PDFDocument, StandardFonts, type PDFFont, type PDFPage } from 'pdf-lib'
 import type { PageViewport } from 'pdfjs-dist/types/src/display/display_utils'
 import type {
@@ -31,6 +32,7 @@ import './polyfills/promise-withresolvers.polyfill'
 
 type RenderableText = {
   content: string
+  font: PDFFont
   fontSize: number
   lineHeight: number
   x: number
@@ -42,6 +44,24 @@ type PdfPagePlan = {
   height: number
   texts: RenderableText[]
   width: number
+}
+
+type DecodeFontConfig = {
+  data?: ArrayBuffer | Uint8Array
+  url?: string
+}
+
+type DecodeFontInput = DecodeFontConfig | DecodeFontConfig[]
+
+type ResolvedDecodeFont = {
+  font: PDFFont
+  role: 'custom' | 'standard'
+  supportedCodePoints: Set<number>
+}
+
+type DecodeFontSet = {
+  fonts: ResolvedDecodeFont[]
+  replacementCharacter: string
 }
 
 type TextMetrics = {
@@ -61,6 +81,24 @@ export class PdfParser extends DocumentParser {
         Pick<typeof import('pdfjs-dist'), 'getDocument' | 'GlobalWorkerOptions'>
       >
     | undefined
+
+  private static decodeFontConfigs: DecodeFontConfig[] | undefined
+
+  private static decodeFontBytesPromise:
+    | Promise<Uint8Array[] | undefined>
+    | undefined
+
+  static configureDecodeFont(config?: DecodeFontInput): void {
+    const normalizedConfigs = PdfParser.normalizeDecodeFontConfigs(config)
+    if (!normalizedConfigs || normalizedConfigs.length === 0) {
+      PdfParser.decodeFontConfigs = undefined
+      PdfParser.decodeFontBytesPromise = undefined
+      return
+    }
+
+    PdfParser.decodeFontConfigs = normalizedConfigs
+    PdfParser.decodeFontBytesPromise = undefined
+  }
 
   async encode(_input: ParserInput): Promise<IntermediateDocument> {
     const arrayBuffer = await DocumentParser.toArrayBuffer(_input)
@@ -103,8 +141,7 @@ export class PdfParser extends DocumentParser {
     if (pages.length === 0) return undefined
 
     const pdfDocument = await PDFDocument.create()
-    const font = await pdfDocument.embedFont(StandardFonts.Helvetica)
-    const supportedCodePoints = new Set(font.getCharacterSet())
+    const decodeFontSet = await PdfParser.resolveDecodeFonts(pdfDocument)
     const pagePlans: PdfPagePlan[] = []
     let hasRenderableContent = false
 
@@ -117,7 +154,7 @@ export class PdfParser extends DocumentParser {
 
       const texts = PdfParser.buildRenderableTexts(
         await PdfParser.resolvePageTexts(page),
-        supportedCodePoints,
+        decodeFontSet,
         pageWidth,
         pageHeight
       )
@@ -136,7 +173,7 @@ export class PdfParser extends DocumentParser {
     for (const pagePlan of pagePlans) {
       const pdfPage = pdfDocument.addPage([pagePlan.width, pagePlan.height])
       await PdfParser.drawBackgroundToPdfPage(pdfDocument, pdfPage, pagePlan)
-      PdfParser.drawTextsToPdfPage(pdfPage, pagePlan.texts, font)
+      PdfParser.drawTextsToPdfPage(pdfPage, pagePlan.texts)
     }
 
     const pdfBytes = await pdfDocument.save()
@@ -192,18 +229,21 @@ export class PdfParser extends DocumentParser {
 
   private static buildRenderableTexts(
     texts: IntermediateText[],
-    supportedCodePoints: Set<number>,
+    decodeFontSet: DecodeFontSet,
     pageWidth: number,
     pageHeight: number
   ): RenderableText[] | undefined {
     const renderableTexts: RenderableText[] = []
 
     for (const text of texts) {
-      const content = PdfParser.normalizeTextContent(
+      const runs = PdfParser.normalizeTextRuns(
         String(text.content ?? ''),
-        supportedCodePoints
+        decodeFontSet
       )
-      if (!/\S/.test(content)) continue
+      if (runs.length === 0) continue
+
+      const normalizedContent = runs.map((run) => run.content).join('')
+      if (!/\S/.test(normalizedContent)) continue
 
       const metrics = PdfParser.resolveRenderableTextMetrics(
         text,
@@ -212,7 +252,21 @@ export class PdfParser extends DocumentParser {
       )
       if (!metrics) return undefined
 
-      renderableTexts.push({ content, ...metrics })
+      let currentX = metrics.x
+      for (const run of runs) {
+        renderableTexts.push({
+          ...metrics,
+          content: run.content,
+          font: run.font,
+          x: currentX
+        })
+
+        currentX += PdfParser.measureTextWidth(
+          run.font,
+          run.content,
+          metrics.fontSize
+        )
+      }
     }
 
     return renderableTexts
@@ -232,11 +286,22 @@ export class PdfParser extends DocumentParser {
 
     if (!fontSize || !lineHeight || !bounds || !textHeight) return undefined
 
+    const verticalExtents = PdfParser.resolveTextVerticalExtents(
+      text.ascent,
+      text.descent,
+      textHeight
+    )
+
     return {
       fontSize,
       lineHeight,
       x: PdfParser.clamp(bounds.minX, 0, pageWidth),
-      y: PdfParser.mapTextYToPdf(bounds.minY, textHeight, fontSize, pageHeight)
+      y: PdfParser.mapTextYToPdf(
+        bounds.minY,
+        verticalExtents.ascentHeight,
+        fontSize,
+        pageHeight
+      )
     }
   }
 
@@ -275,8 +340,7 @@ export class PdfParser extends DocumentParser {
 
   private static drawTextsToPdfPage(
     pdfPage: PDFPage,
-    texts: RenderableText[],
-    font: PDFFont
+    texts: RenderableText[]
   ): void {
     for (const text of texts) {
       pdfPage.drawText(text.content, {
@@ -284,7 +348,7 @@ export class PdfParser extends DocumentParser {
         y: text.y,
         size: text.fontSize,
         lineHeight: text.lineHeight,
-        font
+        font: text.font
       })
     }
   }
@@ -329,18 +393,239 @@ export class PdfParser extends DocumentParser {
     return undefined
   }
 
-  private static normalizeTextContent(
+  private static normalizeTextRuns(
     text: string,
-    supportedCodePoints: Set<number>
-  ): string {
-    return Array.from(text)
-      .map((character) => {
-        if (character === '\n' || character === '\r') return ' '
-        const codePoint = character.codePointAt(0)
-        if (codePoint === undefined) return ''
-        return supportedCodePoints.has(codePoint) ? character : '?'
-      })
-      .join('')
+    decodeFontSet: DecodeFontSet
+  ): Array<{
+    content: string
+    font: PDFFont
+  }> {
+    const runs: Array<{
+      content: string
+      font: PDFFont
+    }> = []
+
+    for (const rawCharacter of Array.from(text)) {
+      const character =
+        rawCharacter === '\n' || rawCharacter === '\r' ? ' ' : rawCharacter
+      const selectedRun = PdfParser.selectFontRunForCharacter(
+        character,
+        decodeFontSet
+      )
+
+      if (!selectedRun) {
+        continue
+      }
+
+      const previousRun = runs.at(-1)
+      if (previousRun?.font === selectedRun.font) {
+        previousRun.content += selectedRun.content
+        continue
+      }
+
+      runs.push(selectedRun)
+    }
+
+    return runs
+  }
+
+  private static selectFontRunForCharacter(
+    character: string,
+    decodeFontSet: DecodeFontSet
+  ):
+    | {
+        content: string
+        font: PDFFont
+      }
+    | undefined {
+    const codePoint = character.codePointAt(0)
+    if (codePoint !== undefined) {
+      const matchedFont = PdfParser.findPreferredFontForCodePoint(
+        codePoint,
+        decodeFontSet.fonts
+      )
+      if (matchedFont) {
+        return {
+          content: character,
+          font: matchedFont.font
+        }
+      }
+    }
+
+    const replacementCodePoint =
+      decodeFontSet.replacementCharacter.codePointAt(0)
+    if (replacementCodePoint === undefined) {
+      return undefined
+    }
+
+    const replacementFont = PdfParser.findPreferredFontForCodePoint(
+      replacementCodePoint,
+      decodeFontSet.fonts
+    )
+    if (!replacementFont) {
+      return undefined
+    }
+
+    return {
+      content: decodeFontSet.replacementCharacter,
+      font: replacementFont.font
+    }
+  }
+
+  private static findPreferredFontForCodePoint(
+    codePoint: number,
+    fonts: ResolvedDecodeFont[]
+  ): ResolvedDecodeFont | undefined {
+    const preferredRoles = PdfParser.isPrintableAscii(codePoint)
+      ? (['standard', 'custom'] as const)
+      : (['custom', 'standard'] as const)
+
+    for (const role of preferredRoles) {
+      const matchedFont = fonts.find(
+        (font) => font.role === role && font.supportedCodePoints.has(codePoint)
+      )
+      if (matchedFont) {
+        return matchedFont
+      }
+    }
+
+    return undefined
+  }
+
+  private static isPrintableAscii(codePoint: number): boolean {
+    return codePoint >= 0x20 && codePoint <= 0x7e
+  }
+
+  private static measureTextWidth(
+    font: PDFFont,
+    content: string,
+    fontSize: number
+  ): number {
+    if (!content) {
+      return 0
+    }
+
+    return font.widthOfTextAtSize(content, fontSize)
+  }
+
+  private static async resolveDecodeFonts(
+    pdfDocument: PDFDocument
+  ): Promise<DecodeFontSet> {
+    const fonts: ResolvedDecodeFont[] = []
+    const customFontBytesList = await PdfParser.loadDecodeFontBytes()
+
+    if (customFontBytesList) {
+      pdfDocument.registerFontkit(fontkit)
+      for (const customFontBytes of customFontBytesList) {
+        const font = await pdfDocument.embedFont(customFontBytes, {
+          subset: true
+        })
+
+        fonts.push({
+          font,
+          role: 'custom',
+          supportedCodePoints: new Set(font.getCharacterSet())
+        })
+      }
+    }
+
+    const font = await pdfDocument.embedFont(StandardFonts.Helvetica)
+    fonts.push({
+      font,
+      role: 'standard',
+      supportedCodePoints: new Set(font.getCharacterSet())
+    })
+
+    return {
+      fonts,
+      replacementCharacter: '?'
+    }
+  }
+
+  private static async loadDecodeFontBytes(): Promise<
+    Uint8Array[] | undefined
+  > {
+    const configs = PdfParser.decodeFontConfigs
+    if (!configs || configs.length === 0) {
+      return undefined
+    }
+
+    if (!PdfParser.decodeFontBytesPromise) {
+      PdfParser.decodeFontBytesPromise =
+        PdfParser.resolveDecodeFontBytesList(configs)
+    }
+
+    return PdfParser.decodeFontBytesPromise
+  }
+
+  private static async resolveDecodeFontBytesList(
+    configs: DecodeFontConfig[]
+  ): Promise<Uint8Array[] | undefined> {
+    const results = await Promise.all(
+      configs.map((config) => PdfParser.resolveDecodeFontBytes(config))
+    )
+    const validResults = results.filter(
+      (result): result is Uint8Array => result instanceof Uint8Array
+    )
+
+    return validResults.length > 0 ? validResults : undefined
+  }
+
+  private static async resolveDecodeFontBytes(
+    config: DecodeFontConfig
+  ): Promise<Uint8Array | undefined> {
+    if (config.data) {
+      return PdfParser.cloneUint8Array(
+        PdfParser.normalizeDecodeFontData(config.data)
+      )
+    }
+
+    if (!config.url) {
+      return undefined
+    }
+
+    const response = await fetch(config.url)
+    if (!response.ok) {
+      throw new Error(`Failed to load decode font: ${response.status}`)
+    }
+
+    return new Uint8Array(await response.arrayBuffer())
+  }
+
+  private static normalizeDecodeFontData(
+    data: ArrayBuffer | Uint8Array
+  ): Uint8Array {
+    if (data instanceof Uint8Array) {
+      return data
+    }
+
+    return new Uint8Array(data)
+  }
+
+  private static cloneUint8Array(data: Uint8Array): Uint8Array {
+    return new Uint8Array(data)
+  }
+
+  private static normalizeDecodeFontConfigs(
+    config?: DecodeFontInput
+  ): DecodeFontConfig[] | undefined {
+    if (!config) {
+      return undefined
+    }
+
+    const configList = Array.isArray(config) ? config : [config]
+    const normalizedConfigs = configList
+      .filter((item) => Boolean(item?.data || item?.url))
+      .map((item) => ({
+        data: item.data
+          ? PdfParser.cloneUint8Array(
+              PdfParser.normalizeDecodeFontData(item.data)
+            )
+          : undefined,
+        url: item.url
+      }))
+
+    return normalizedConfigs.length > 0 ? normalizedConfigs : undefined
   }
 
   private static normalizeDimension(value: number): number | undefined {
@@ -356,11 +641,11 @@ export class PdfParser extends DocumentParser {
 
   private static mapTextYToPdf(
     topY: number,
-    textHeight: number,
+    baselineOffset: number,
     fontSize: number,
     pageHeight: number
   ): number {
-    const candidateY = pageHeight - topY - textHeight
+    const candidateY = pageHeight - topY - baselineOffset
     const maxY = Math.max(0, pageHeight - fontSize)
     return PdfParser.clamp(candidateY, 0, maxY)
   }
@@ -703,10 +988,16 @@ export class PdfParser extends DocumentParser {
       metrics.lineHeight,
       0
     )
+    const verticalExtents = PdfParser.resolveTextVerticalExtents(
+      metrics.ascent,
+      metrics.descent,
+      height
+    )
     const left = Number.isFinite(x) ? x : 0
-    const top = Number.isFinite(y) ? y : 0
+    const baselineY = Number.isFinite(y) ? y : 0
+    const top = baselineY - verticalExtents.ascentHeight
     const right = left + width
-    const bottom = top + height
+    const bottom = baselineY + verticalExtents.descentHeight
 
     return [
       [left, top],
@@ -714,6 +1005,40 @@ export class PdfParser extends DocumentParser {
       [right, bottom],
       [left, bottom]
     ]
+  }
+
+  private static resolveTextVerticalExtents(
+    ascent: number,
+    descent: number,
+    totalHeight: number
+  ): {
+    ascentHeight: number
+    descentHeight: number
+  } {
+    const normalizedHeight = PdfParser.normalizeDimension(totalHeight) ?? 0
+    if (!normalizedHeight) {
+      return {
+        ascentHeight: 0,
+        descentHeight: 0
+      }
+    }
+
+    const normalizedAscent = Number.isFinite(ascent) && ascent > 0 ? ascent : 0
+    const normalizedDescent = Number.isFinite(descent) ? Math.abs(descent) : 0
+    const ratioTotal = normalizedAscent + normalizedDescent
+
+    if (normalizedAscent > 0 && ratioTotal > 0) {
+      const scale = normalizedHeight / ratioTotal
+      return {
+        ascentHeight: normalizedAscent * scale,
+        descentHeight: normalizedDescent * scale
+      }
+    }
+
+    return {
+      ascentHeight: normalizedHeight,
+      descentHeight: 0
+    }
   }
 
   private static asTextItem(

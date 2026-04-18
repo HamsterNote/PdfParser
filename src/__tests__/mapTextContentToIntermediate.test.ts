@@ -1,7 +1,11 @@
 import { describe, it, expect } from '@jest/globals'
 import { PdfParser } from '@PdfParser'
 import { TextDir } from '@hamster-note/types'
-import type { TextContent, TextItem } from 'pdfjs-dist/types/src/display/api'
+import type {
+  TextContent,
+  TextItem,
+  TextStyle
+} from 'pdfjs-dist/types/src/display/api'
 import type { PageViewport } from 'pdfjs-dist'
 import { Util } from 'pdfjs-dist'
 
@@ -86,6 +90,54 @@ const mapTextContentToIntermediate = (
       ) => IntermediateText[]
     }
   ).mapTextContentToIntermediate(textContent, pdfId, pageNumber, viewport)
+}
+
+const buildIntermediateText = (
+  id: string,
+  textItem: TextItem,
+  style: Partial<TextStyle>,
+  viewport: Pick<PageViewport, 'height' | 'transform'>
+): IntermediateText => {
+  return (
+    PdfParser as unknown as {
+      buildIntermediateText: (
+        id: string,
+        textItem: TextItem,
+        style: Partial<TextStyle>,
+        viewport: Pick<PageViewport, 'height' | 'transform'>
+      ) => IntermediateText
+    }
+  ).buildIntermediateText(id, textItem, style, viewport)
+}
+
+const resolveRenderableTextMetrics = (
+  text: IntermediateText,
+  pageWidth: number,
+  pageHeight: number
+):
+  | {
+      fontSize: number
+      lineHeight: number
+      x: number
+      y: number
+    }
+  | undefined => {
+  return (
+    PdfParser as unknown as {
+      resolveRenderableTextMetrics: (
+        text: IntermediateText,
+        pageWidth: number,
+        pageHeight: number
+      ) =>
+        | {
+            fontSize: number
+            lineHeight: number
+            x: number
+            y: number
+          }
+        | undefined
+    }
+  ).resolveRenderableTextMetrics(text, pageWidth, pageHeight)
 }
 
 describe('mapTextContentToIntermediate', () => {
@@ -173,10 +225,11 @@ describe('mapTextContentToIntermediate', () => {
         viewport.transform,
         textItem.transform
       )
+      const expectedTopY = expectedMatrix[5] - textItem.height
 
       expect(result).toHaveLength(1)
       expect(getTopLeftPoint(result[0]).x).toBeCloseTo(expectedMatrix[4])
-      expect(getTopLeftPoint(result[0]).y).toBeCloseTo(expectedMatrix[5])
+      expect(getTopLeftPoint(result[0]).y).toBeCloseTo(expectedTopY)
       expect(getTopLeftPoint(result[0]).y).not.toBeCloseTo(
         textItem.transform[5]
       )
@@ -201,8 +254,40 @@ describe('mapTextContentToIntermediate', () => {
       // viewport.transform = [1, 0, 0, -1, 0, 800]
       // transform = [12, 0, 0, 12, 100, 600]
       // x = 1*100 + 0 = 100
-      // y = -1*600 + 800 = 200
-      expect(getTopLeftPoint(result[0]).y).toBe(200)
+      // baselineY = -1*600 + 800 = 200
+      // polygon top = baselineY - textHeight = 188
+      expect(getTopLeftPoint(result[0]).y).toBe(188)
+    })
+
+    it('应该保留文字 baseline，避免 decode 时整体下移一个字高', () => {
+      const viewport = createViewport(400)
+      const textItem = createTextItem({
+        str: 'Hello',
+        transform: [16, 0, 0, 16, 100, 200],
+        width: 48,
+        height: 16,
+        fontName: 'F1'
+      })
+      const style: Partial<TextStyle> = {
+        fontFamily: 'Arial',
+        ascent: 0.85,
+        descent: -0.15,
+        vertical: false
+      }
+
+      const text = buildIntermediateText(
+        'pdf-1-page-1-text-0',
+        textItem,
+        style,
+        viewport
+      )
+      const renderable = resolveRenderableTextMetrics(text, 300, 400)
+      const bounds = getPolygonBounds(text.polygon)
+
+      expect(bounds.minY).toBeCloseTo(186.4, 5)
+      expect(bounds.maxY).toBeCloseTo(202.4, 5)
+      expect(renderable).toBeDefined()
+      expect(renderable?.y).toBeCloseTo(200, 5)
     })
   })
 
