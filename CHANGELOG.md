@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UnReleased]
 
+## [0.5.0] - 2026-04-19
+
 ### Added
 - 添加 `opsx-*` 实验性 OpenSpec 工作流命令与配套 skill，支持变更创建、推进、同步、验证与归档
 - 新增 `openspec` 配置与主 specs，补充 `pdf-decode-output`、`demo-decode-preview` 规范
