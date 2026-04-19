@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UnReleased]
 
+### Added
+- 新增 `verify:roundtrip` 与 `verify:package` 脚本，基于真实 PDF fixture 校验 encode → decode → encode 的回归效果并输出报告
+
+### Changed
+- 调整 PR CI，在构建后执行 package 级 smoke / roundtrip 验证，并上传 `test-results` 作为测试产物
+
 ## [0.5.0] - 2026-04-19
 
 ### Added

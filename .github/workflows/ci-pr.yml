@@ -45,6 +45,20 @@ jobs:
         run: |
           yarn build:all
 
+      - name: Verify package smoke and roundtrip regression
+        env:
+          PDF_PARSER_TEST_REPORT_DIR: test-results
+        run: |
+          yarn verify:package
+
+      - name: Upload verification reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-verification-reports
+          path: test-results
+          if-no-files-found: ignore
+
       - name: Verify npm pack (dry-run)
         run: |
           npm pack --dry-run
