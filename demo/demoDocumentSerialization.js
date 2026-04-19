@@ -1,16 +1,18 @@
 function buildPageSummary(page, texts) {
-  const previewText = texts
-    .map((text) => text?.content ?? '')
-    .join(' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-
   return {
     number: page.number,
     width: page.width,
     height: page.height,
     textCount: texts.length,
-    previewText
+    previewText: texts.map((text) => {
+      return {
+        content: text.content,
+        fontSize: text.fontSize,
+        fontFamily: text.fontFamily,
+        color: text.color,
+        polygon: text.polygon
+      }
+    })
   }
 }
 

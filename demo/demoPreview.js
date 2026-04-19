@@ -1,10 +1,12 @@
 const PREVIEW_ERROR_CLASS = 'preview-error'
+const PREVIEW_FRAME_CLASS = 'preview-has-frame'
 
 function getPreviewDocument(preview) {
   return preview?.ownerDocument ?? document
 }
 
 function resetPreview(preview) {
+  preview.classList.remove(PREVIEW_FRAME_CLASS)
   preview.replaceChildren()
 }
 
@@ -32,6 +34,7 @@ export function renderPreviewFrame(preview, frameUrl, title = 'PDF preview') {
 
   resetPreview(preview)
   preview.classList.remove(PREVIEW_ERROR_CLASS)
+  preview.classList.add(PREVIEW_FRAME_CLASS)
 
   const frame = getPreviewDocument(preview).createElement('iframe')
   frame.className = 'preview-frame'

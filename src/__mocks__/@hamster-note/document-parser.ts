@@ -42,7 +42,7 @@ export abstract class DocumentParser {
       return input.buffer.slice(
         input.byteOffset,
         input.byteOffset + input.byteLength
-      )
+      ) as ArrayBuffer
     }
     if (input instanceof Blob) {
       return input.arrayBuffer()

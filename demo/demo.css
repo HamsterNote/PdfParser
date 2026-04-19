@@ -16,7 +16,7 @@ body {
 }
 
 .container {
-  max-width: 1100px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 32px 20px 48px;
 }
@@ -43,6 +43,21 @@ header h1 {
   margin-bottom: 16px;
 }
 
+.preview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.preview-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.decode-card {
+  min-width: 0;
+}
 .card h2,
 .card h3 {
   margin: 0 0 12px;
@@ -174,6 +189,15 @@ input[type='file'] {
   justify-content: center;
 }
 
+.preview.preview-has-frame {
+  padding: 0;
+  overflow: hidden;
+  align-items: stretch;
+  justify-content: stretch;
+  border-style: solid;
+  background: #ffffff;
+}
+
 .preview img {
   max-width: 100%;
   height: auto;
@@ -184,9 +208,11 @@ input[type='file'] {
 .preview-frame {
   display: block;
   width: 100%;
-  min-height: 220px;
+  min-height: 100%;
+  height: 100%;
   border: 0;
   background: #ffffff;
+  flex: 1;
 }
 
 .preview.preview-error {
@@ -210,11 +236,29 @@ input[type='file'] {
 }
 
 .decode-preview {
-  min-height: 320px;
+  min-height: 620px;
+}
+
+.preview-card .preview {
+  flex: 1;
+}
+
+.preview-grid .preview {
+  min-height: 620px;
 }
 
 .decode-preview-note {
   min-height: 16px;
+}
+
+@media (max-width: 1100px) {
+  .preview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .preview-grid .preview {
+    min-height: 420px;
+  }
 }
 
 .button-secondary {

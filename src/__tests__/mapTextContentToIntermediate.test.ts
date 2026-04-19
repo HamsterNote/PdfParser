@@ -1,7 +1,11 @@
 import { describe, it, expect } from '@jest/globals'
 import { PdfParser } from '@PdfParser'
 import { TextDir } from '@hamster-note/types'
-import type { TextContent, TextItem } from 'pdfjs-dist/types/src/display/api'
+import type {
+  TextContent,
+  TextItem,
+  TextStyle
+} from 'pdfjs-dist/types/src/display/api'
 import type { PageViewport } from 'pdfjs-dist'
 import { Util } from 'pdfjs-dist'
 
@@ -52,6 +56,24 @@ function createViewport(
 
 import type { IntermediateText } from '@hamster-note/types'
 
+function getPolygonBounds(polygon: IntermediateText['polygon']) {
+  const xValues = polygon.map(([x]) => x)
+  const yValues = polygon.map(([, y]) => y)
+
+  return {
+    minX: Math.min(...xValues),
+    maxX: Math.max(...xValues),
+    minY: Math.min(...yValues),
+    maxY: Math.max(...yValues)
+  }
+}
+
+function getTopLeftPoint(text: IntermediateText) {
+  const [topLeft] = text.polygon
+  const [x, y] = topLeft
+  return { x, y }
+}
+
 const mapTextContentToIntermediate = (
   textContent: TextContent,
   pdfId: string,
@@ -68,6 +90,54 @@ const mapTextContentToIntermediate = (
       ) => IntermediateText[]
     }
   ).mapTextContentToIntermediate(textContent, pdfId, pageNumber, viewport)
+}
+
+const buildIntermediateText = (
+  id: string,
+  textItem: TextItem,
+  style: Partial<TextStyle>,
+  viewport: Pick<PageViewport, 'height' | 'transform'>
+): IntermediateText => {
+  return (
+    PdfParser as unknown as {
+      buildIntermediateText: (
+        id: string,
+        textItem: TextItem,
+        style: Partial<TextStyle>,
+        viewport: Pick<PageViewport, 'height' | 'transform'>
+      ) => IntermediateText
+    }
+  ).buildIntermediateText(id, textItem, style, viewport)
+}
+
+const resolveRenderableTextMetrics = (
+  text: IntermediateText,
+  pageWidth: number,
+  pageHeight: number
+):
+  | {
+      fontSize: number
+      lineHeight: number
+      x: number
+      y: number
+    }
+  | undefined => {
+  return (
+    PdfParser as unknown as {
+      resolveRenderableTextMetrics: (
+        text: IntermediateText,
+        pageWidth: number,
+        pageHeight: number
+      ) =>
+        | {
+            fontSize: number
+            lineHeight: number
+            x: number
+            y: number
+          }
+        | undefined
+    }
+  ).resolveRenderableTextMetrics(text, pageWidth, pageHeight)
 }
 
 describe('mapTextContentToIntermediate', () => {
@@ -101,9 +171,13 @@ describe('mapTextContentToIntermediate', () => {
       expect(text.content).toBe('Hello World')
       expect(text.id).toBe('test-pdf-id-page-1-text-0')
       expect(text.fontFamily).toBe('Arial')
-      expect(text.width).toBe(80)
-      expect(typeof text.x).toBe('number')
-      expect(typeof text.y).toBe('number')
+      expect(text.polygon).toHaveLength(4)
+      expect(
+        getPolygonBounds(text.polygon).maxX -
+          getPolygonBounds(text.polygon).minX
+      ).toBe(80)
+      expect(typeof text.polygon[0][0]).toBe('number')
+      expect(typeof text.polygon[0][1]).toBe('number')
       expect(text.dir).toBe(TextDir.LTR)
     })
 
@@ -151,11 +225,14 @@ describe('mapTextContentToIntermediate', () => {
         viewport.transform,
         textItem.transform
       )
+      const expectedTopY = expectedMatrix[5] - textItem.height
 
       expect(result).toHaveLength(1)
-      expect(result[0].x).toBeCloseTo(expectedMatrix[4])
-      expect(result[0].y).toBeCloseTo(expectedMatrix[5])
-      expect(result[0].y).not.toBeCloseTo(textItem.transform[5])
+      expect(getTopLeftPoint(result[0]).x).toBeCloseTo(expectedMatrix[4])
+      expect(getTopLeftPoint(result[0]).y).toBeCloseTo(expectedTopY)
+      expect(getTopLeftPoint(result[0]).y).not.toBeCloseTo(
+        textItem.transform[5]
+      )
     })
 
     it('应该正确处理不同页面的坐标', () => {
@@ -173,12 +250,44 @@ describe('mapTextContentToIntermediate', () => {
       )
 
       expect(result[0].id).toBe('pdf-2-page-5-text-0')
-      expect(result[0].x).toBe(100)
+      expect(getTopLeftPoint(result[0]).x).toBe(100)
       // viewport.transform = [1, 0, 0, -1, 0, 800]
       // transform = [12, 0, 0, 12, 100, 600]
       // x = 1*100 + 0 = 100
-      // y = -1*600 + 800 = 200
-      expect(result[0].y).toBe(200)
+      // baselineY = -1*600 + 800 = 200
+      // polygon top = baselineY - textHeight = 188
+      expect(getTopLeftPoint(result[0]).y).toBe(188)
+    })
+
+    it('应该保留文字 baseline，避免 decode 时整体下移一个字高', () => {
+      const viewport = createViewport(400)
+      const textItem = createTextItem({
+        str: 'Hello',
+        transform: [16, 0, 0, 16, 100, 200],
+        width: 48,
+        height: 16,
+        fontName: 'F1'
+      })
+      const style: Partial<TextStyle> = {
+        fontFamily: 'Arial',
+        ascent: 0.85,
+        descent: -0.15,
+        vertical: false
+      }
+
+      const text = buildIntermediateText(
+        'pdf-1-page-1-text-0',
+        textItem,
+        style,
+        viewport
+      )
+      const renderable = resolveRenderableTextMetrics(text, 300, 400)
+      const bounds = getPolygonBounds(text.polygon)
+
+      expect(bounds.minY).toBeCloseTo(186.4, 5)
+      expect(bounds.maxY).toBeCloseTo(202.4, 5)
+      expect(renderable).toBeDefined()
+      expect(renderable?.y).toBeCloseTo(200, 5)
     })
   })
 
@@ -413,11 +522,10 @@ describe('mapTextContentToIntermediate', () => {
 
       expect(result).toHaveLength(1)
       expect(result[0].content).toBe('Rotated')
-      // 确保坐标被正确计算（具体值取决于 transform 逻辑）
-      expect(typeof result[0].x).toBe('number')
-      expect(typeof result[0].y).toBe('number')
-      expect(Number.isFinite(result[0].x)).toBe(true)
-      expect(Number.isFinite(result[0].y)).toBe(true)
+      expect(typeof result[0].polygon[0][0]).toBe('number')
+      expect(typeof result[0].polygon[0][1]).toBe('number')
+      expect(Number.isFinite(result[0].polygon[0][0])).toBe(true)
+      expect(Number.isFinite(result[0].polygon[0][1])).toBe(true)
     })
 
     it('handles scaled transforms', () => {
@@ -439,7 +547,10 @@ describe('mapTextContentToIntermediate', () => {
 
       expect(result).toHaveLength(1)
       expect(result[0].content).toBe('Scaled')
-      expect(result[0].height).toBe(24)
+      expect(
+        getPolygonBounds(result[0].polygon).maxY -
+          getPolygonBounds(result[0].polygon).minY
+      ).toBe(24)
     })
 
     it('handles negative transform values gracefully', () => {
@@ -459,8 +570,8 @@ describe('mapTextContentToIntermediate', () => {
       )
 
       expect(result).toHaveLength(1)
-      expect(Number.isFinite(result[0].x)).toBe(true)
-      expect(Number.isFinite(result[0].y)).toBe(true)
+      expect(Number.isFinite(result[0].polygon[0][0])).toBe(true)
+      expect(Number.isFinite(result[0].polygon[0][1])).toBe(true)
     })
   })
 
@@ -853,7 +964,7 @@ describe('mapTextContentToIntermediate', () => {
       expect(result[0].color).toBe('transparent')
     })
 
-    it('应该设置固定的 rotate 和 skew', () => {
+    it('应该设置固定的 skew，并输出四点 polygon', () => {
       const viewport = createViewport(400)
       const textItem = createTextItem()
       const textContent = createTextContent([textItem])
@@ -865,8 +976,8 @@ describe('mapTextContentToIntermediate', () => {
         viewport
       )
 
-      expect(result[0].rotate).toBe(0)
       expect(result[0].skew).toBe(0)
+      expect(result[0].polygon).toHaveLength(4)
     })
   })
 })

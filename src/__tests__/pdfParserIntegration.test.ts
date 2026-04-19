@@ -3,11 +3,13 @@ import { PdfParser } from '@PdfParser'
 import {
   IntermediateDocument,
   IntermediatePage,
-  IntermediatePageMap
+  IntermediatePageMap,
+  IntermediateText,
+  TextDir
 } from '@hamster-note/types'
-import { readFile } from 'fs/promises'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 /**
  * PDF 解析集成测试 - test_github.pdf
@@ -17,9 +19,105 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+function createPolygon(x: number, y: number, width: number, height: number) {
+  return [
+    [x, y],
+    [x + width, y],
+    [x + width, y + height],
+    [x, y + height]
+  ] as const
+}
+
+function getPolygonBounds(polygon: IntermediateText['polygon']) {
+  const xValues = polygon.map(([x]) => x)
+  const yValues = polygon.map(([, y]) => y)
+
+  return {
+    minX: Math.min(...xValues),
+    maxX: Math.max(...xValues),
+    minY: Math.min(...yValues),
+    maxY: Math.max(...yValues)
+  }
+}
+
+function createRenderableText(
+  overrides: Partial<ConstructorParameters<typeof IntermediateText>[0]> = {}
+) {
+  return new IntermediateText({
+    id: 'text-1',
+    content: 'Structured text',
+    fontSize: 16,
+    fontFamily: 'Helvetica',
+    fontWeight: 500,
+    italic: false,
+    color: 'transparent',
+    polygon: createPolygon(24, 40, 120, 16),
+    lineHeight: 16,
+    ascent: 0.85,
+    descent: -0.15,
+    dir: TextDir.LTR,
+    skew: 0,
+    isEOL: false,
+    ...overrides
+  })
+}
+
+function createStructuredDocument(texts: IntermediateText[]) {
+  return new IntermediateDocument({
+    id: 'structured-doc',
+    title: 'Structured',
+    pagesMap: IntermediatePageMap.makeByInfoList([
+      {
+        id: 'structured-page-1',
+        pageNumber: 1,
+        size: { x: 200, y: 300 },
+        getData: async () =>
+          new IntermediatePage({
+            id: 'structured-page-1',
+            number: 1,
+            width: 200,
+            height: 300,
+            texts,
+            thumbnail: undefined
+          })
+      }
+    ])
+  })
+}
+
+function createStructuredDocumentWithPage(
+  pageOverrides: Partial<ConstructorParameters<typeof IntermediatePage>[0]> = {}
+) {
+  return new IntermediateDocument({
+    id: 'structured-doc',
+    title: 'Structured',
+    pagesMap: IntermediatePageMap.makeByInfoList([
+      {
+        id: 'structured-page-1',
+        pageNumber: 1,
+        size: { x: 200, y: 300 },
+        getData: async () =>
+          new IntermediatePage({
+            id: 'structured-page-1',
+            number: 1,
+            width: 200,
+            height: 300,
+            texts: [],
+            thumbnail: undefined,
+            ...pageOverrides
+          })
+      }
+    ])
+  })
+}
+
+const PNG_DATA_URL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO9n7n0AAAAASUVORK5CYII='
+
 describe('PdfParser Integration Tests - test_github.pdf', () => {
   let pdfBuffer: ArrayBuffer
   let document: Awaited<ReturnType<typeof PdfParser.encode>>
+  let cjkFontBuffer: ArrayBuffer
 
   beforeAll(async () => {
     const pdfPath = path.resolve(__dirname, 'test_github.pdf')
@@ -27,6 +125,15 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
     pdfBuffer = buffer.buffer.slice(
       buffer.byteOffset,
       buffer.byteOffset + buffer.byteLength
+    )
+    const cjkFontPath = path.resolve(
+      __dirname,
+      '../../demo/assets/NotoSansSC-Regular.otf'
+    )
+    const cjkFont = await readFile(cjkFontPath)
+    cjkFontBuffer = cjkFont.buffer.slice(
+      cjkFont.byteOffset,
+      cjkFont.byteOffset + cjkFont.byteLength
     )
     document = await PdfParser.encode(pdfBuffer)
   }, 30000)
@@ -140,29 +247,27 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
       }
     })
 
-    it('文本元素应该有位置信息 (x, y)', async () => {
+    it('文本元素应该有 polygon 位置信息', async () => {
       const page = await document?.getPageByPageNumber(1)
       const texts = page?.texts ?? []
       expect(texts.length).toBeGreaterThan(0)
 
       for (const text of texts.slice(0, 5)) {
-        expect(typeof text.x).toBe('number')
-        expect(typeof text.y).toBe('number')
-        expect(Number.isFinite(text.x)).toBe(true)
-        expect(Number.isFinite(text.y)).toBe(true)
+        expect(text.polygon).toHaveLength(4)
+        expect(Number.isFinite(text.polygon[0][0])).toBe(true)
+        expect(Number.isFinite(text.polygon[0][1])).toBe(true)
       }
     })
 
-    it('文本元素应该有尺寸信息', async () => {
+    it('文本元素应该通过 polygon 保留尺寸信息', async () => {
       const page = await document?.getPageByPageNumber(1)
       const texts = page?.texts ?? []
       expect(texts.length).toBeGreaterThan(0)
 
       for (const text of texts.slice(0, 5)) {
-        expect(typeof text.width).toBe('number')
-        expect(typeof text.height).toBe('number')
-        expect(text.width).toBeGreaterThanOrEqual(0)
-        expect(text.height).toBeGreaterThanOrEqual(0)
+        const bounds = getPolygonBounds(text.polygon)
+        expect(bounds.maxX - bounds.minX).toBeGreaterThanOrEqual(0)
+        expect(bounds.maxY - bounds.minY).toBeGreaterThanOrEqual(0)
       }
     })
 
@@ -252,6 +357,131 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
       expect(reparsed?.pageCount).toBe(document?.pageCount)
     })
 
+    it('对符合新版文本契约的结构化中间文档应该返回 ArrayBuffer', async () => {
+      const structuredDocument = createStructuredDocument([
+        createRenderableText()
+      ])
+
+      const decoded = await PdfParser.decode(structuredDocument)
+
+      expect(decoded).toBeInstanceOf(ArrayBuffer)
+      expect(decoded?.byteLength).toBeGreaterThan(0)
+    })
+
+    it('应把 `IntermediatePage.getThumbnail()` 返回的背景写入生成的 PDF', async () => {
+      const structuredDocument = createStructuredDocumentWithPage({
+        getThumbnailFn: async () => PNG_DATA_URL
+      })
+
+      const decoded = await PdfParser.decode(structuredDocument)
+
+      expect(decoded).toBeInstanceOf(ArrayBuffer)
+      expect(decoded?.byteLength).toBeGreaterThan(0)
+
+      const pdfSource = Buffer.from(decoded as ArrayBuffer).toString('latin1')
+      expect(pdfSource).toContain('/Subtype /Image')
+    })
+
+    it('新版类型序列化往返后仍应可 decode', async () => {
+      const structuredDocument = createStructuredDocument([
+        createRenderableText()
+      ])
+      const serialized =
+        await IntermediateDocument.serialize(structuredDocument)
+      const reparsed = IntermediateDocument.parse(serialized)
+
+      const decoded = await PdfParser.decode(reparsed)
+
+      expect(decoded).toBeInstanceOf(ArrayBuffer)
+      expect(decoded?.byteLength).toBeGreaterThan(0)
+    })
+
+    it('配置中文字体后 decode 应保留中文文本', async () => {
+      const structuredDocument = createStructuredDocument([
+        createRenderableText({
+          content: '中文测试'
+        })
+      ])
+
+      PdfParser.configureDecodeFont({
+        data: cjkFontBuffer
+      })
+
+      try {
+        const decoded = await PdfParser.decode(structuredDocument)
+
+        expect(decoded).toBeInstanceOf(ArrayBuffer)
+        expect(decoded?.byteLength).toBeGreaterThan(0)
+
+        const reparsed = await PdfParser.encode(decoded as ArrayBuffer)
+        const reparsedPage = await reparsed?.getPageByPageNumber(1)
+        const reparsedText =
+          reparsedPage?.texts?.map((t) => t.content).join('') ?? ''
+
+        expect(reparsedText).toContain('中文测试')
+      } finally {
+        PdfParser.configureDecodeFont()
+      }
+    })
+
+    it('配置中文字体后 decode 应保留中英混排文本', async () => {
+      const structuredDocument = createStructuredDocument([
+        createRenderableText({
+          content: 'Hello 世界 PDF'
+        })
+      ])
+
+      PdfParser.configureDecodeFont({
+        data: cjkFontBuffer
+      })
+
+      try {
+        const decoded = await PdfParser.decode(structuredDocument)
+
+        expect(decoded).toBeInstanceOf(ArrayBuffer)
+        expect(decoded?.byteLength).toBeGreaterThan(0)
+
+        const reparsed = await PdfParser.encode(decoded as ArrayBuffer)
+        const reparsedPage = await reparsed?.getPageByPageNumber(1)
+        const reparsedText =
+          reparsedPage?.texts?.map((t) => t.content).join('') ?? ''
+
+        expect(reparsedText).toContain('Hello')
+        expect(reparsedText).toContain('世界')
+        expect(reparsedText).toContain('PDF')
+      } finally {
+        PdfParser.configureDecodeFont()
+      }
+    })
+
+    it('配置中文字体后 decode 应保留“个人主页”文本', async () => {
+      const structuredDocument = createStructuredDocument([
+        createRenderableText({
+          content: '个人主页'
+        })
+      ])
+
+      PdfParser.configureDecodeFont({
+        data: cjkFontBuffer
+      })
+
+      try {
+        const decoded = await PdfParser.decode(structuredDocument)
+
+        expect(decoded).toBeInstanceOf(ArrayBuffer)
+        expect(decoded?.byteLength).toBeGreaterThan(0)
+
+        const reparsed = await PdfParser.encode(decoded as ArrayBuffer)
+        const reparsedPage = await reparsed?.getPageByPageNumber(1)
+        const reparsedText =
+          reparsedPage?.texts?.map((t) => t.content).join('') ?? ''
+
+        expect(reparsedText).toContain('个人主页')
+      } finally {
+        PdfParser.configureDecodeFont()
+      }
+    })
+
     it('对缺少可用页面内容的文档应该返回 undefined', async () => {
       const detachedDocument = new IntermediateDocument({
         id: 'detached-doc',
@@ -275,6 +505,18 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
       })
 
       const decoded = await PdfParser.decode(detachedDocument)
+
+      expect(decoded).toBeUndefined()
+    })
+
+    it('对缺少渲染关键字段的新版文档应该返回 undefined', async () => {
+      const invalidDocument = createStructuredDocument([
+        createRenderableText({
+          lineHeight: 0
+        })
+      ])
+
+      const decoded = await PdfParser.decode(invalidDocument)
 
       expect(decoded).toBeUndefined()
     })
