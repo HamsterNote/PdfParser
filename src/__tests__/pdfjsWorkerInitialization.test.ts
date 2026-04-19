@@ -3,10 +3,22 @@ import { pathToFileURL } from 'node:url'
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 
 const browserWorkerSrc = new URL('../pdf.worker.min.mjs', import.meta.url).href
+const browserStandardFontDataUrl = new URL(
+  '../standard_fonts/',
+  import.meta.url
+).href
 const nodeWorkerSrc = pathToFileURL(
   createRequire(import.meta.url).resolve(
     'pdfjs-dist/legacy/build/pdf.worker.min.mjs'
   )
+).toString()
+const nodeStandardFontDataUrl = new URL(
+  './',
+  pathToFileURL(
+    createRequire(import.meta.url).resolve(
+      'pdfjs-dist/standard_fonts/LiberationSans-Regular.ttf'
+    )
+  ).toString()
 ).toString()
 
 const resetDocument = (): void => {
@@ -24,14 +36,18 @@ const setDocument = (value: object): void => {
 
 const loadEnsurePdfjsWorkerConfigured = async (): Promise<{
   ensurePdfjsWorkerConfigured: typeof import('../pdfjsWorker').ensurePdfjsWorkerConfigured
+  ensurePdfjsStandardFontDataUrlConfigured: typeof import('../pdfjsWorker').ensurePdfjsStandardFontDataUrlConfigured
   GlobalWorkerOptions: typeof import('pdfjs-dist').GlobalWorkerOptions
 }> => {
   jest.resetModules()
-  const [{ ensurePdfjsWorkerConfigured }, { GlobalWorkerOptions }] =
-    await Promise.all([import('../pdfjsWorker'), import('pdfjs-dist')])
+  const [
+    { ensurePdfjsWorkerConfigured, ensurePdfjsStandardFontDataUrlConfigured },
+    { GlobalWorkerOptions }
+  ] = await Promise.all([import('../pdfjsWorker'), import('pdfjs-dist')])
 
   return {
     ensurePdfjsWorkerConfigured,
+    ensurePdfjsStandardFontDataUrlConfigured,
     GlobalWorkerOptions
   }
 }
@@ -86,5 +102,25 @@ describe('ensurePdfjsWorkerConfigured', () => {
 
     expect(secondWorkerSrc).toBe(firstWorkerSrc)
     expect(GlobalWorkerOptions.workerSrc).toBe(firstWorkerSrc)
+  })
+
+  it('returns browser standard font data path in browser environment', async () => {
+    setDocument({})
+
+    const { ensurePdfjsStandardFontDataUrlConfigured } =
+      await loadEnsurePdfjsWorkerConfigured()
+
+    expect(ensurePdfjsStandardFontDataUrlConfigured()).toBe(
+      browserStandardFontDataUrl
+    )
+  })
+
+  it('returns Node standard font data path in Node environment', async () => {
+    const { ensurePdfjsStandardFontDataUrlConfigured } =
+      await loadEnsurePdfjsWorkerConfigured()
+
+    expect(ensurePdfjsStandardFontDataUrlConfigured()).toBe(
+      nodeStandardFontDataUrl
+    )
   })
 })

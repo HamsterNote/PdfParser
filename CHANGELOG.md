@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - 优化 Demo 的 encode/decode 预览链路与状态展示
 - 调整 `PdfParser` / `pdfjsWorker` 相关实现、集成测试与 smoke test
+- 修复 Demo 中 `pdfjs-dist` 版本漂移导致的 encode 失败，并改用本地 OTF 中文字体稳定 decode 预览的中文渲染
 
 ## [0.4.1] - 2026-04-02
 

@@ -26,7 +26,10 @@ import type {
   TextItem,
   TextStyle
 } from 'pdfjs-dist/types/src/display/api'
-import { ensurePdfjsWorkerConfigured } from './pdfjsWorker'
+import {
+  ensurePdfjsStandardFontDataUrlConfigured,
+  ensurePdfjsWorkerConfigured
+} from './pdfjsWorker'
 import './polyfills/dom-matrix.polyfill'
 import './polyfills/promise-withresolvers.polyfill'
 
@@ -518,7 +521,7 @@ export class PdfParser extends DocumentParser {
       pdfDocument.registerFontkit(fontkit)
       for (const customFontBytes of customFontBytesList) {
         const font = await pdfDocument.embedFont(customFontBytes, {
-          subset: true
+          subset: false
         })
 
         fonts.push({
@@ -654,9 +657,11 @@ export class PdfParser extends DocumentParser {
     const { getDocument, GlobalWorkerOptions } =
       await PdfParser.loadPdfjsModule()
     ensurePdfjsWorkerConfigured(GlobalWorkerOptions)
+    const standardFontDataUrl = ensurePdfjsStandardFontDataUrlConfigured()
     const dataCopy = data.slice(0)
     const loadingTask = getDocument({
-      data: new Uint8Array(dataCopy)
+      data: new Uint8Array(dataCopy),
+      standardFontDataUrl
     } as Parameters<typeof getDocument>[0])
     return loadingTask.promise
   }

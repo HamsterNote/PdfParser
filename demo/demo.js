@@ -3,55 +3,21 @@ import { serializeIntermediate } from './demoDocumentSerialization.js'
 import { renderPreviewFrame, setPreviewMessage } from './demoPreview.js'
 import { createJsonOutputRenderer } from './demoJsonView.js'
 
-const DEMO_FONT_MANIFEST_URL =
-  '../node_modules/@fontsource/noto-sans-sc/400.css'
-const DEMO_FONT_FILES_BASE_URL =
-  '../node_modules/@fontsource/noto-sans-sc/files/'
-const DEMO_FALLBACK_FONT_URL =
-  '../node_modules/@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-400-normal.woff'
-
-const extractFontUrlsFromCss = (cssText) => {
-  const matches = cssText.matchAll(/url\(\.\/files\/([^)]+\.woff)\)/g)
-  const urls = []
-
-  for (const match of matches) {
-    const fileName = match[1]
-    if (!fileName) {
-      continue
-    }
-
-    const url = `${DEMO_FONT_FILES_BASE_URL}${fileName}`
-    if (!urls.includes(url)) {
-      urls.push(url)
-    }
-  }
-
-  return urls
-}
+const DEMO_FALLBACK_FONT_URL = './assets/NotoSansSC-Regular.otf'
 
 const configureDemoDecodeFonts = async () => {
   try {
-    const response = await fetch(DEMO_FONT_MANIFEST_URL)
+    const response = await fetch(DEMO_FALLBACK_FONT_URL, { method: 'HEAD' })
     if (!response.ok) {
-      throw new Error(`Failed to load font manifest: ${response.status}`)
+      throw new Error(`Failed to load decode font: ${response.status}`)
     }
 
-    const cssText = await response.text()
-    const fontUrls = extractFontUrlsFromCss(cssText)
-
-    if (fontUrls.length === 0) {
-      throw new Error('No decode font files found in manifest.')
-    }
-
-    PdfParser.configureDecodeFont(fontUrls.map((url) => ({ url })))
-  } catch (error) {
-    console.warn(
-      'Failed to configure full decode font set, falling back.',
-      error
-    )
     PdfParser.configureDecodeFont({
       url: DEMO_FALLBACK_FONT_URL
     })
+  } catch (error) {
+    console.warn('Failed to configure decode font.', error)
+    PdfParser.configureDecodeFont()
   }
 }
 

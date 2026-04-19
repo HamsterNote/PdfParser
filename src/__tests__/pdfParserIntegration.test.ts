@@ -128,7 +128,7 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
     )
     const cjkFontPath = path.resolve(
       __dirname,
-      '../../node_modules/@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-400-normal.woff'
+      '../../demo/assets/NotoSansSC-Regular.otf'
     )
     const cjkFont = await readFile(cjkFontPath)
     cjkFontBuffer = cjkFont.buffer.slice(
@@ -449,6 +449,34 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
         expect(reparsedText).toContain('Hello')
         expect(reparsedText).toContain('世界')
         expect(reparsedText).toContain('PDF')
+      } finally {
+        PdfParser.configureDecodeFont()
+      }
+    })
+
+    it('配置中文字体后 decode 应保留“个人主页”文本', async () => {
+      const structuredDocument = createStructuredDocument([
+        createRenderableText({
+          content: '个人主页'
+        })
+      ])
+
+      PdfParser.configureDecodeFont({
+        data: cjkFontBuffer
+      })
+
+      try {
+        const decoded = await PdfParser.decode(structuredDocument)
+
+        expect(decoded).toBeInstanceOf(ArrayBuffer)
+        expect(decoded?.byteLength).toBeGreaterThan(0)
+
+        const reparsed = await PdfParser.encode(decoded as ArrayBuffer)
+        const reparsedPage = await reparsed?.getPageByPageNumber(1)
+        const reparsedText =
+          reparsedPage?.texts?.map((t) => t.content).join('') ?? ''
+
+        expect(reparsedText).toContain('个人主页')
       } finally {
         PdfParser.configureDecodeFont()
       }
