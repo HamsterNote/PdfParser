@@ -1,6 +1,6 @@
 {
   "name": "@hamster-note/pdf-parser",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "",
   "scripts": {
     "build:all": "rolldown --config rolldown.config.ts && node ./scripts/copyPdfjsWorker.mjs",
@@ -21,7 +21,7 @@
     "@hamster-note/types": "^0.7.0",
     "@pdf-lib/fontkit": "^1.1.1",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^5.4.530"
+    "pdfjs-dist": "5.4.530"
   },
   "overrides": {
     "@hamster-note/types": "^0.7.0"
