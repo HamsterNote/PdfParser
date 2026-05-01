@@ -67,6 +67,19 @@ type DecodeFontSet = {
   replacementCharacter: string
 }
 
+export type DecodeOptions = {
+  fonts?: DecodeFontInput
+}
+
+export type DecodeProgressEvent = {
+  stage: 'decode:start' | 'decode:page' | 'decode:complete'
+  current: number
+  total: number
+  message?: string
+}
+
+export type DecodeProgressReporter = (progress: DecodeProgressEvent) => void
+
 type TextMetrics = {
   width: number
   height: number
@@ -138,17 +151,36 @@ export class PdfParser extends DocumentParser {
   }
 
   static async decode(
-    intermediateDocument: IntermediateDocument
+    intermediateDocument: IntermediateDocument,
+    options: DecodeOptions = {},
+    onProgress?: DecodeProgressReporter
   ): Promise<File | ArrayBuffer | undefined> {
+    if (typeof options === 'function') {
+      throw new TypeError(
+        'PdfParser.decode() no longer accepts a progress function as the second argument. ' +
+          'Use PdfParser.decode(document, options, reporter) instead.'
+      )
+    }
+
     const pages = await PdfParser.resolveIntermediatePages(intermediateDocument)
     if (pages.length === 0) return undefined
 
+    const pageCount = pages.length
+
+    if (onProgress) {
+      onProgress({ stage: 'decode:start', current: 0, total: pageCount })
+    }
+
     const pdfDocument = await PDFDocument.create()
-    const decodeFontSet = await PdfParser.resolveDecodeFonts(pdfDocument)
+    const decodeFontSet = await PdfParser.resolveDecodeFonts(
+      pdfDocument,
+      options.fonts
+    )
     const pagePlans: PdfPagePlan[] = []
     let hasRenderableContent = false
 
-    for (const page of pages) {
+    for (let index = 0; index < pages.length; index++) {
+      const page = pages[index]
       const pageWidth = PdfParser.normalizeDimension(page.width)
       const pageHeight = PdfParser.normalizeDimension(page.height)
       if (!pageWidth || !pageHeight) continue
@@ -161,7 +193,7 @@ export class PdfParser extends DocumentParser {
         pageWidth,
         pageHeight
       )
-      if (!texts) return undefined
+      if (texts === undefined) return undefined
       if (texts.length > 0 || background) hasRenderableContent = true
       pagePlans.push({
         width: pageWidth,
@@ -169,6 +201,14 @@ export class PdfParser extends DocumentParser {
         texts,
         background
       })
+
+      if (onProgress) {
+        onProgress({
+          stage: 'decode:page',
+          current: index + 1,
+          total: pageCount
+        })
+      }
     }
 
     if (!hasRenderableContent || pagePlans.length === 0) return undefined
@@ -180,6 +220,15 @@ export class PdfParser extends DocumentParser {
     }
 
     const pdfBytes = await pdfDocument.save()
+
+    if (onProgress) {
+      onProgress({
+        stage: 'decode:complete',
+        current: pageCount,
+        total: pageCount
+      })
+    }
+
     return Uint8Array.from(pdfBytes).buffer
   }
 
@@ -512,10 +561,13 @@ export class PdfParser extends DocumentParser {
   }
 
   private static async resolveDecodeFonts(
-    pdfDocument: PDFDocument
+    pdfDocument: PDFDocument,
+    fontOverride?: DecodeFontInput
   ): Promise<DecodeFontSet> {
     const fonts: ResolvedDecodeFont[] = []
-    const customFontBytesList = await PdfParser.loadDecodeFontBytes()
+    const customFontBytesList = fontOverride
+      ? await PdfParser.loadDecodeFontBytesForConfig(fontOverride)
+      : await PdfParser.loadDecodeFontBytes()
 
     if (customFontBytesList) {
       pdfDocument.registerFontkit(fontkit)
@@ -559,6 +611,17 @@ export class PdfParser extends DocumentParser {
     }
 
     return PdfParser.decodeFontBytesPromise
+  }
+
+  private static async loadDecodeFontBytesForConfig(
+    fontInput: DecodeFontInput
+  ): Promise<Uint8Array[] | undefined> {
+    const configs = PdfParser.normalizeDecodeFontConfigs(fontInput)
+    if (!configs || configs.length === 0) {
+      return undefined
+    }
+
+    return PdfParser.resolveDecodeFontBytesList(configs)
   }
 
   private static async resolveDecodeFontBytesList(

@@ -551,5 +551,158 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
         0x25, 0x50, 0x44, 0x46
       ])
     })
+
+    it('默认单参数 decode(doc) 应返回 ArrayBuffer', async () => {
+      const structuredDocument = createStructuredDocument([
+        createRenderableText({ content: '默认参数测试' })
+      ])
+
+      const decoded = await PdfParser.decode(structuredDocument)
+
+      expect(decoded).toBeInstanceOf(ArrayBuffer)
+      expect(decoded?.byteLength).toBeGreaterThan(0)
+
+      const decodedBytes = new Uint8Array(decoded as ArrayBuffer)
+      expect(Array.from(decodedBytes.subarray(0, 4))).toEqual([
+        0x25, 0x50, 0x44, 0x46
+      ])
+    })
+
+    it('decode(doc, {}, reporter) 应触发 progress 事件', async () => {
+      const structuredDocument = createStructuredDocument([
+        createRenderableText({ content: '进度事件测试' })
+      ])
+
+      const events: Array<{
+        stage: 'decode:start' | 'decode:page' | 'decode:complete'
+        current: number
+        total: number
+        message?: string
+      }> = []
+
+      const reporter = (event: (typeof events)[0]) => {
+        events.push(event)
+      }
+
+      const decoded = await PdfParser.decode(structuredDocument, {}, reporter)
+
+      expect(decoded).toBeInstanceOf(ArrayBuffer)
+      expect(decoded?.byteLength).toBeGreaterThan(0)
+
+      expect(events.length).toBeGreaterThan(0)
+      expect(events[0].stage).toBe('decode:start')
+      expect(events[0].current).toBe(0)
+      expect(events[0].total).toBe(1)
+
+      const pageEvents = events.filter((e) => e.stage === 'decode:page')
+      expect(pageEvents.length).toBeGreaterThan(0)
+      expect(pageEvents[0].current).toBe(1)
+
+      const completeEvents = events.filter((e) => e.stage === 'decode:complete')
+      expect(completeEvents.length).toBe(1)
+      expect(completeEvents[0].current).toBe(1)
+      expect(completeEvents[0].total).toBe(1)
+    })
+
+    it('无效输入不应触发 decode:complete 事件', async () => {
+      const invalidDocument = createStructuredDocument([
+        createRenderableText({
+          lineHeight: 0
+        })
+      ])
+
+      const events: Array<{
+        stage: 'decode:start' | 'decode:page' | 'decode:complete'
+        current: number
+        total: number
+        message?: string
+      }> = []
+      const reporter = (event: (typeof events)[0]) => {
+        events.push(event)
+      }
+
+      const decoded = await PdfParser.decode(invalidDocument, {}, reporter)
+
+      expect(decoded).toBeUndefined()
+
+      const completeEvents = events.filter((e) => e.stage === 'decode:complete')
+      expect(completeEvents.length).toBe(0)
+    })
+
+    it('per-call options.fonts 应替换静态字体配置', async () => {
+      const staticFontDocument = createStructuredDocument([
+        createRenderableText({ content: '静态字体文本' })
+      ])
+      const perCallFontDocument = createStructuredDocument([
+        createRenderableText({ content: 'per-call 字体文本' })
+      ])
+
+      PdfParser.configureDecodeFont({
+        data: cjkFontBuffer
+      })
+
+      try {
+        const staticDecoded = await PdfParser.decode(staticFontDocument)
+        expect(staticDecoded).toBeInstanceOf(ArrayBuffer)
+
+        const perCallDecoded = await PdfParser.decode(perCallFontDocument, {
+          fonts: { data: cjkFontBuffer }
+        })
+        expect(perCallDecoded).toBeInstanceOf(ArrayBuffer)
+        expect(perCallDecoded?.byteLength).toBeGreaterThan(0)
+      } finally {
+        PdfParser.configureDecodeFont()
+      }
+    })
+
+    it('两次 decode 调用使用不同 per-call fonts 不应互相泄漏', async () => {
+      const doc1 = createStructuredDocument([
+        createRenderableText({ content: '文档一中文本' })
+      ])
+      const doc2 = createStructuredDocument([
+        createRenderableText({ content: 'Document Two English' })
+      ])
+
+      PdfParser.configureDecodeFont({
+        data: cjkFontBuffer
+      })
+
+      try {
+        const decoded1 = await PdfParser.decode(doc1)
+        expect(decoded1).toBeInstanceOf(ArrayBuffer)
+
+        const decoded2 = await PdfParser.decode(doc2, {
+          fonts: undefined
+        })
+        expect(decoded2).toBeInstanceOf(ArrayBuffer)
+
+        const decoded3 = await PdfParser.decode(doc1, {
+          fonts: { data: cjkFontBuffer }
+        })
+        expect(decoded3).toBeInstanceOf(ArrayBuffer)
+
+        const decoded4 = await PdfParser.decode(doc2)
+        expect(decoded4).toBeInstanceOf(ArrayBuffer)
+      } finally {
+        PdfParser.configureDecodeFont()
+      }
+    })
+
+    it('将 reporter 作为第二个参数应抛出 TypeError', async () => {
+      const structuredDocument = createStructuredDocument([
+        createRenderableText({ content: '参数位置测试' })
+      ])
+
+      const reporter = () => {}
+
+      await expect(
+        PdfParser.decode(
+          structuredDocument,
+          reporter as unknown as Record<string, unknown>
+        )
+      ).rejects.toThrow(
+        'PdfParser.decode() no longer accepts a progress function as the second argument'
+      )
+    })
   })
 })
