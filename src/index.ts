@@ -4,9 +4,12 @@ import './polyfills/dom-matrix.polyfill'
 export { PdfParser } from './pdfParser'
 
 export type {
+  EncodeOptions,
   DecodeOptions,
   DecodeProgressEvent,
-  DecodeProgressReporter
+  DecodeProgressReporter,
+  EncodeProgressEvent,
+  EncodeProgressReporter
 } from './pdfParser'
 
 export type {

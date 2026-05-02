@@ -71,6 +71,11 @@ export type DecodeOptions = {
   fonts?: DecodeFontInput
 }
 
+export type EncodeOptions = {
+  maxPages?: number
+  pageLoadTimeoutMs?: number
+}
+
 export type DecodeProgressEvent = {
   stage: 'decode:start' | 'decode:page' | 'decode:complete'
   current: number
@@ -79,6 +84,15 @@ export type DecodeProgressEvent = {
 }
 
 export type DecodeProgressReporter = (progress: DecodeProgressEvent) => void
+
+export type EncodeProgressEvent = {
+  stage: 'encode:start' | 'encode:page' | 'encode:complete'
+  current: number
+  total: number
+  message?: string
+}
+
+export type EncodeProgressReporter = (progress: EncodeProgressEvent) => void
 
 type TextMetrics = {
   width: number
@@ -92,6 +106,11 @@ type TextMetrics = {
 }
 
 export class PdfParser extends DocumentParser {
+  private static readonly defaultEncodeOptions: Required<EncodeOptions> = {
+    maxPages: Number.POSITIVE_INFINITY,
+    pageLoadTimeoutMs: 5000
+  }
+
   private static pdfjsModulePromise:
     | Promise<
         Pick<typeof import('pdfjs-dist'), 'getDocument' | 'GlobalWorkerOptions'>
@@ -126,12 +145,21 @@ export class PdfParser extends DocumentParser {
   static readonly exts = ['pdf'] as const
 
   static async encode(
-    fileOrBuffer: File | ArrayBuffer
+    fileOrBuffer: File | ArrayBuffer,
+    options: EncodeOptions = {},
+    onProgress?: EncodeProgressReporter
   ): Promise<IntermediateDocument | undefined> {
     const buffer = await PdfParser.toArrayBuffer(fileOrBuffer).catch(
       () => undefined
     )
     if (!buffer) return undefined
+
+    if (typeof options === 'function') {
+      throw new TypeError(
+        'PdfParser.encode() no longer accepts a progress function as the second argument. ' +
+          'Use PdfParser.encode(input, options, reporter) instead.'
+      )
+    }
 
     const pdf = await PdfParser.loadPdf(buffer)
 
@@ -144,10 +172,43 @@ export class PdfParser extends DocumentParser {
     }
     const id = (pdf.fingerprints?.[0] ?? `pdf-${Date.now()}`) as string
 
-    const infoList = await PdfParser.buildPageInfoList(pdf, id)
+    const encodeOptions = PdfParser.resolveEncodeOptions(options, pdf.numPages)
+    const total = Math.min(pdf.numPages, encodeOptions.maxPages)
+    if (onProgress) {
+      onProgress({ stage: 'encode:start', current: 0, total })
+    }
+    const infoList = await PdfParser.buildPageInfoList(
+      pdf,
+      id,
+      encodeOptions,
+      onProgress
+    )
     const pagesMap = IntermediatePageMap.makeByInfoList(infoList)
     const outline = await PdfParser.buildOutline(pdf, id).catch(() => undefined)
-    return new IntermediateDocument({ id, title, pagesMap, outline })
+    const result = new IntermediateDocument({ id, title, pagesMap, outline })
+    if (onProgress) {
+      onProgress({ stage: 'encode:complete', current: total, total })
+    }
+    return result
+  }
+
+  private static resolveEncodeOptions(
+    options: EncodeOptions,
+    totalPages: number
+  ): Required<EncodeOptions> {
+    const maxPages = Number.isFinite(options.maxPages)
+      ? Math.floor(options.maxPages as number)
+      : PdfParser.defaultEncodeOptions.maxPages
+    const pageLoadTimeoutMs = Number.isFinite(options.pageLoadTimeoutMs)
+      ? Math.floor(options.pageLoadTimeoutMs as number)
+      : PdfParser.defaultEncodeOptions.pageLoadTimeoutMs
+
+    return {
+      maxPages: Number.isFinite(maxPages)
+        ? PdfParser.clamp(maxPages, 1, Math.max(1, totalPages))
+        : Math.max(1, totalPages),
+      pageLoadTimeoutMs: Math.max(1, pageLoadTimeoutMs)
+    }
   }
 
   static async decode(
@@ -740,7 +801,9 @@ export class PdfParser extends DocumentParser {
 
   private static async buildPageInfoList(
     pdf: PDFDocumentProxy,
-    pdfId: string
+    pdfId: string,
+    options: Required<EncodeOptions>,
+    onProgress?: EncodeProgressReporter
   ): Promise<
     {
       id: string
@@ -749,7 +812,7 @@ export class PdfParser extends DocumentParser {
       getData: () => Promise<IntermediatePage>
     }[]
   > {
-    const total = pdf.numPages
+    const total = Math.min(pdf.numPages, options.maxPages)
     const result: {
       id: string
       pageNumber: number
@@ -757,27 +820,70 @@ export class PdfParser extends DocumentParser {
       getData: () => Promise<IntermediatePage>
     }[] = []
     for (let n = 1; n <= total; n++) {
-      const page = await pdf.getPage(n)
+      const page = await PdfParser.withTimeout(
+        pdf.getPage(n),
+        options.pageLoadTimeoutMs,
+        `Timed out while loading page ${n} during PDF encode`
+      )
       const viewport = page.getViewport({ scale: 1 })
       const id = `${pdfId}-page-${n}`
       const size: Number2 = { x: viewport.width, y: viewport.height }
-      const getData = () => PdfParser.buildIntermediatePage(pdf, n, pdfId)
+      const getData = () =>
+        PdfParser.buildIntermediatePage(
+          pdf,
+          n,
+          pdfId,
+          options.pageLoadTimeoutMs
+        )
       result.push({ id, pageNumber: n, size, getData })
       page.cleanup?.()
+      if (onProgress) {
+        onProgress({ stage: 'encode:page', current: n, total })
+      }
     }
     return result
+  }
+
+  private static async withTimeout<T>(
+    operation: Promise<T>,
+    timeoutMs: number,
+    timeoutMessage: string
+  ): Promise<T> {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const timeoutPromise = new Promise<T>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(timeoutMessage))
+      }, timeoutMs)
+    })
+
+    try {
+      return await Promise.race([operation, timeoutPromise])
+    } finally {
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId)
+      }
+    }
   }
 
   private static async buildIntermediatePage(
     pdf: PDFDocumentProxy,
     pageNumber: number,
-    pdfId: string
+    pdfId: string,
+    pageLoadTimeoutMs: number
   ): Promise<IntermediatePage> {
-    const page = await pdf.getPage(pageNumber)
+    const page = await PdfParser.withTimeout(
+      pdf.getPage(pageNumber),
+      pageLoadTimeoutMs,
+      `Timed out while loading page ${pageNumber} during PDF encode`
+    )
     const viewport = page.getViewport({ scale: 1 })
-    const textContent = await page.getTextContent({
-      includeMarkedContent: false
-    })
+    const textContent = await PdfParser.withTimeout(
+      page.getTextContent({
+        includeMarkedContent: false
+      }),
+      pageLoadTimeoutMs,
+      `Timed out while extracting text from page ${pageNumber} during PDF encode`
+    )
     const texts = PdfParser.mapTextContentToIntermediate(
       textContent,
       pdfId,

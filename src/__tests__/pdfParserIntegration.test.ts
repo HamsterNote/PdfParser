@@ -705,4 +705,72 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
       )
     })
   })
+
+  describe('encode 进度事件', () => {
+    it('应发出完整的 encode 进度事件序列 (4 页 PDF)', async () => {
+      const events: Array<{
+        stage: 'encode:start' | 'encode:page' | 'encode:complete'
+        current: number
+        total: number
+        message?: string
+      }> = []
+
+      const reporter = (event: (typeof events)[0]) => {
+        events.push(event)
+      }
+
+      await PdfParser.encode(pdfBuffer, {}, reporter)
+
+      expect(events.length).toBe(6)
+      expect(events[0].stage).toBe('encode:start')
+      expect(events[0].current).toBe(0)
+      expect(events[0].total).toBe(4)
+
+      const pageEvents = events.filter((e) => e.stage === 'encode:page')
+      expect(pageEvents.length).toBe(4)
+      expect(pageEvents[0].current).toBe(1)
+      expect(pageEvents[1].current).toBe(2)
+      expect(pageEvents[2].current).toBe(3)
+      expect(pageEvents[3].current).toBe(4)
+      pageEvents.forEach((e) => {
+        expect(e.total).toBe(4)
+      })
+
+      const completeEvents = events.filter((e) => e.stage === 'encode:complete')
+      expect(completeEvents.length).toBe(1)
+      expect(completeEvents[0].current).toBe(4)
+      expect(completeEvents[0].total).toBe(4)
+    })
+
+    it('maxPages: 2 应使 total 反映有效限制而非原始 PDF 大小', async () => {
+      const events: Array<{
+        stage: 'encode:start' | 'encode:page' | 'encode:complete'
+        current: number
+        total: number
+        message?: string
+      }> = []
+
+      const reporter = (event: (typeof events)[0]) => {
+        events.push(event)
+      }
+
+      await PdfParser.encode(pdfBuffer, { maxPages: 2 }, reporter)
+
+      expect(events[0].stage).toBe('encode:start')
+      expect(events[0].total).toBe(2)
+
+      const pageEvents = events.filter((e) => e.stage === 'encode:page')
+      expect(pageEvents.length).toBe(2)
+      expect(pageEvents[0].current).toBe(1)
+      expect(pageEvents[1].current).toBe(2)
+      pageEvents.forEach((e) => {
+        expect(e.total).toBe(2)
+      })
+
+      const completeEvents = events.filter((e) => e.stage === 'encode:complete')
+      expect(completeEvents.length).toBe(1)
+      expect(completeEvents[0].current).toBe(2)
+      expect(completeEvents[0].total).toBe(2)
+    })
+  })
 })
