@@ -1,0 +1,17 @@
+
+> @hamster-note/pdf-parser@0.3.0 build:all
+> rolldown --config rolldown.config.ts && node ./scripts/copyPdfjsWorker.mjs
+
+<DIR>/cli/generate.js.map            asset │ size:  4.21 kB
+<DIR>/index.js.map                   asset │ size:  5.71 kB
+<DIR>/runGeneration-DgGqm3Lk.js.map  asset │ size: 31.42 kB
+<DIR>/pdfParser-BZaoIE3X.js.map      asset │ size: 54.84 kB
+<DIR>/browser.js                     chunk │ size:  0.08 kB
+<DIR>/cli/generate.js                chunk │ size:  2.32 kB
+<DIR>/index.js                       chunk │ size:  3.65 kB
+<DIR>/runGeneration-DgGqm3Lk.js      chunk │ size: 15.38 kB
+<DIR>/pdfParser-BZaoIE3X.js          chunk │ size: 25.27 kB
+
+✔ rolldown v1.0.0-beta.58 Finished in 11.85 ms
+Copied: node_modules/pdfjs-dist/build/pdf.worker.min.mjs -> dist/pdf.worker.min.mjs
+-rw-r--r--  1 zhangxiao  staff  1072841  3月 29 18:38 dist/pdf.worker.min.mjs

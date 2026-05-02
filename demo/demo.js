@@ -189,6 +189,62 @@ const createDecodePreviewUrl = (decoded) => {
   return URL.createObjectURL(blob)
 }
 
+const formatDecodeProgressText = (event) => {
+  const total = Number.isFinite(event?.total) ? event.total : 0
+  const current = Number.isFinite(event?.current) ? event.current : 0
+  const pageLabel = total === 1 ? 'page' : 'pages'
+
+  if (event?.stage === 'decode:start') {
+    if (total > 0) {
+      return `Decoding started. Preparing ${total} ${pageLabel}...`
+    }
+
+    return 'Decoding started.'
+  }
+
+  if (event?.stage === 'decode:complete') {
+    if (total > 0) {
+      return `Decoding complete. Processed ${total} ${pageLabel}.`
+    }
+
+    return 'Decoding complete.'
+  }
+
+  if (total > 0) {
+    return `Decoding page ${Math.min(current, total)} of ${total}...`
+  }
+
+  return 'Decoding PDF binary...'
+}
+
+const formatEncodeProgressText = (event) => {
+  const total = Number.isFinite(event?.total) ? event.total : 0
+  const current = Number.isFinite(event?.current) ? event.current : 0
+  const pageLabel = total === 1 ? 'page' : 'pages'
+
+  if (event?.stage === 'encode:start') {
+    if (total > 0) {
+      return `Encoding started. Preparing ${total} ${pageLabel}...`
+    }
+
+    return 'Encoding started.'
+  }
+
+  if (event?.stage === 'encode:complete') {
+    if (total > 0) {
+      return `Encoding complete. Processed ${total} ${pageLabel}.`
+    }
+
+    return 'Encoding complete.'
+  }
+
+  if (total > 0) {
+    return `Encoding page ${Math.min(current, total)} of ${total}...`
+  }
+
+  return 'Encoding PDF pages...'
+}
+
 const renderPagePreview = (file) => {
   if (!file || !(file instanceof Blob)) {
     resetPreview()
@@ -328,7 +384,28 @@ const handleEncode = async () => {
 
   try {
     const arrayBuffer = await currentFile.arrayBuffer()
-    const intermediate = await PdfParser.encode(arrayBuffer)
+    const intermediate = await PdfParser.encode(arrayBuffer, {}, (event) => {
+      if (encodeContextId !== activeDecodeContextId) {
+        return
+      }
+
+      setStatus(formatEncodeProgressText(event))
+
+      if (event?.stage === 'encode:start') {
+        setPreviewNote('Encoding PDF pages...')
+      }
+
+      if (event?.stage === 'encode:page' && event.total > 0) {
+        const pageLabel = event.total === 1 ? 'page' : 'pages'
+        setPreviewNote(
+          `Processed ${event.current} / ${event.total} ${pageLabel} so far.`
+        )
+      }
+
+      if (event?.stage === 'encode:complete') {
+        setPreviewNote('Finalizing the restored PDF preview...')
+      }
+    })
 
     if (encodeContextId !== activeDecodeContextId) {
       return
@@ -404,7 +481,36 @@ const handleDecode = async () => {
 
   try {
     await decodeFontSetupPromise
-    const decoded = await PdfParser.decode(intermediateDocument)
+    const decoded = await PdfParser.decode(
+      intermediateDocument,
+      {},
+      (event) => {
+        if (
+          decodeContextId !== activeDecodeContextId ||
+          currentIntermediateDocument !== intermediateDocument
+        ) {
+          return
+        }
+
+        const previewMessage =
+          event.stage === 'decode:complete'
+            ? 'Finalizing the restored PDF preview...'
+            : 'Generating a preview from the current encoded document...'
+
+        let note = 'The previous decode preview has been cleared.'
+        if (event.stage === 'decode:page' && event.total > 0) {
+          const pageLabel = event.total === 1 ? 'page' : 'pages'
+          note = `Processed ${event.current} / ${event.total} ${pageLabel} so far.`
+        }
+
+        setDecodeState({
+          name: 'loading',
+          statusText: formatDecodeProgressText(event),
+          previewMessage,
+          note
+        })
+      }
+    )
 
     if (
       decodeContextId !== activeDecodeContextId ||
