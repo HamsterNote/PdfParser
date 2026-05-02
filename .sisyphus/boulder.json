@@ -1,42 +1,68 @@
 {
-  "active_plan": "/Users/zhangxiao/frontend/HamsterNote/PdfParser/.sisyphus/plans/pdfjs-worker-initialization.md",
-  "started_at": "2026-03-26T13:46:33.155Z",
+  "active_plan": "/home/zhangxiao/frontend/worktrees/PdfParser/feature-add-some-params/.sisyphus/plans/demo-encode-performance.md",
+  "started_at": "2026-05-02T08:19:43.896Z",
   "session_ids": [
-    "ses_2c6f49606ffeTslmCBTURBwiBu",
-    "ses_2c6d5ab1bffeOaAj6oohujcgOv",
-    "ses_2c6d53113ffd4EBl4uI58mlpc5",
-    "ses_2c6d214f1ffexEslkJSsQ0GvNw",
-    "ses_2c6d1eb09ffeSBnAbp3BruyoHy",
-    "ses_2c6d1612fffejFXP46ER86B11F",
-    "ses_2c6d18d2affeBkoUdvvsBvVja0",
-    "ses_2c2c321d0ffeDoM6hYZcU5TG4l",
-    "ses_2c2c1b270ffeCyGvejqv35FjTw",
-    "ses_2c2c167b2ffehysyXHgR2mBbSk",
-    "ses_2c2c1212dfferaPyTfXjC0ybI4",
-    "ses_2c2b4779fffedzZD4FHRb7sb7Y",
-    "ses_2c2ace3bdffeejQ4vm12wAkKKb",
-    "ses_2c295a07affeZohLcRPsf1CETf",
-    "ses_2b2a7ac21ffeLrfTBX34GxDuOG"
+    "ses_2183a577fffeIyV2zxSxNsuHo2"
   ],
-  "plan_name": "pdfjs-worker-initialization",
+  "session_origins": {
+    "ses_2183a577fffeIyV2zxSxNsuHo2": "direct"
+  },
+  "plan_name": "demo-encode-performance",
   "agent": "atlas",
   "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Replace eager demo serialization with progressive snapshots",
+      "session_id": "ses_218190a51ffeUK9QcAbq28bQKw",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-02T09:26:06.819Z"
+    },
     "todo:2": {
       "task_key": "todo:2",
       "task_label": "2",
-      "task_title": "在 PdfParser 懒接入自动初始化并回归解析路径",
-      "session_id": "ses_2c6d5ab1bffeOaAj6oohujcgOv",
+      "task_title": "Add incremental JSON rendering with yielding updates",
+      "session_id": "ses_217f9f140ffeXeYyyrbqLYVVnY",
+      "agent": "Sisyphus-Junior",
+      "category": "visual-engineering",
+      "updated_at": "2026-05-02T09:33:07.917Z"
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "Rework `handleEncode()` to stream results and cancel stale runs",
+      "session_id": "ses_217f5ffccffeulF2hVkJiwwDJh",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-low",
+      "updated_at": "2026-05-02T09:37:51.427Z"
+    },
+    "todo:4": {
+      "task_key": "todo:4",
+      "task_label": "4",
+      "task_title": "Reduce parser page-scan latency while keeping page data lazy",
+      "session_id": "ses_217ed3481ffegQGD5GMaBh9aj0",
       "agent": "Sisyphus-Junior",
       "category": "quick",
-      "updated_at": "2026-03-29T10:37:16.418Z"
+      "updated_at": "2026-05-02T09:51:40.981Z"
+    },
+    "todo:5": {
+      "task_key": "todo:5",
+      "task_label": "5",
+      "task_title": "Add regression coverage and end-to-end verification for the new flow",
+      "session_id": "ses_217e27075ffeMdHl0mFsb2hNQ9",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-02T10:14:52.151Z"
     },
     "final-wave:f1": {
       "task_key": "final-wave:f1",
       "task_label": "F1",
       "task_title": "Plan Compliance Audit — oracle",
-      "session_id": "ses_2c6d214f1ffexEslkJSsQ0GvNw",
-      "agent": "oracle",
-      "updated_at": "2026-03-29T10:51:11.229Z"
+      "session_id": "ses_217a983c8ffejWQDbGDyPSv44o",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-05-02T11:02:56.996Z"
     }
   }
 }

@@ -1,0 +1,11 @@
+Task 2 Evidence
+
+demoJsonView tests passed:
+- returns renderData, updateData, renderMessage, and dispose
+- renderData creates and renders tree immediately
+- updateData schedules a render via setTimeout fallback
+- multiple updateData calls coalesce into a single render with the latest data
+- renderMessage destroys tree and shows text
+- dispose destroys tree, clears container, and cancels pending scheduled frame
+- transition from renderMessage to updateData works correctly
+

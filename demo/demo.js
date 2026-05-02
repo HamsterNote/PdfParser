@@ -1,7 +1,7 @@
 import { PdfParser } from '../dist/browser.js'
-import { serializeIntermediate } from './demoDocumentSerialization.js'
-import { renderPreviewFrame, setPreviewMessage } from './demoPreview.js'
+import { createProgressiveSerializer } from './demoDocumentSerialization.js'
 import { createJsonOutputRenderer } from './demoJsonView.js'
+import { renderPreviewFrame, setPreviewMessage } from './demoPreview.js'
 
 const DEMO_FALLBACK_FONT_URL = './assets/NotoSansSC-Regular.otf'
 
@@ -415,15 +415,27 @@ const handleEncode = async () => {
       throw new Error('Encode returned empty result.')
     }
 
-    const serialized = await serializeIntermediate(intermediate)
+    const serializer = createProgressiveSerializer(intermediate)
+    jsonRenderer.renderData(serializer.shell)
+    renderSummary(serializer.shell)
+
+    serializer.onUpdate((snapshot) => {
+      if (encodeContextId !== activeDecodeContextId) {
+        return
+      }
+
+      jsonRenderer.updateData(snapshot)
+      renderSummary(snapshot)
+    })
+
+    const finalSnapshot = await serializer.resolve()
 
     if (encodeContextId !== activeDecodeContextId) {
       return
     }
 
-    jsonRenderer.renderData(serialized)
-
-    renderSummary(serialized)
+    jsonRenderer.updateData(finalSnapshot)
+    renderSummary(finalSnapshot)
     activateDecodeContext(intermediate)
 
     setStatus('Encode ready')

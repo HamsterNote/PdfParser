@@ -1,0 +1,12 @@
+Task 4 Evidence
+
+buildPageInfoList tests passed:
+- respects max 4 in-flight getPage calls at any time
+- emits encode:page events in strict ascending order even when pages complete out of order
+- emits progress events for all pages in order
+- returns pages in ascending page-number order regardless of fetch completion order
+- getData closures remain lazy - do not call buildIntermediatePage until invoked
+- maxPages limits the number of pages processed
+
+Integration tests passed: 40/40
+

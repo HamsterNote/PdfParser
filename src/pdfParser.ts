@@ -813,35 +813,77 @@ export class PdfParser extends DocumentParser {
     }[]
   > {
     const total = Math.min(pdf.numPages, options.maxPages)
-    const result: {
+    if (total === 0) {
+      return []
+    }
+    const CONCURRENCY = 4
+    const slots: {
       id: string
       pageNumber: number
       size: Number2
       getData: () => Promise<IntermediatePage>
-    }[] = []
-    for (let n = 1; n <= total; n++) {
-      const page = await PdfParser.withTimeout(
-        pdf.getPage(n),
-        options.pageLoadTimeoutMs,
-        `Timed out while loading page ${n} during PDF encode`
-      )
-      const viewport = page.getViewport({ scale: 1 })
-      const id = `${pdfId}-page-${n}`
-      const size: Number2 = { x: viewport.width, y: viewport.height }
-      const getData = () =>
-        PdfParser.buildIntermediatePage(
-          pdf,
-          n,
-          pdfId,
-          options.pageLoadTimeoutMs
-        )
-      result.push({ id, pageNumber: n, size, getData })
-      page.cleanup?.()
-      if (onProgress) {
-        onProgress({ stage: 'encode:page', current: n, total })
+    }[] = new Array(total).fill(undefined)
+    let nextToEmit = 1
+    let nextToFetch = 1
+    let inFlight = 0
+
+    return new Promise((resolve, reject) => {
+      let settled = false
+
+      function onPageLoaded(page: PDFPageProxy, n: number) {
+        page.cleanup?.()
+        if (settled) return
+        const viewport = page.getViewport({ scale: 1 })
+        const id = `${pdfId}-page-${n}`
+        const size: Number2 = { x: viewport.width, y: viewport.height }
+        const getData = () =>
+          PdfParser.buildIntermediatePage(
+            pdf,
+            n,
+            pdfId,
+            options.pageLoadTimeoutMs
+          )
+        slots[n - 1] = { id, pageNumber: n, size, getData }
+        while (nextToEmit <= total && slots[nextToEmit - 1] !== undefined) {
+          if (onProgress) {
+            onProgress({
+              stage: 'encode:page',
+              current: nextToEmit,
+              total
+            })
+          }
+          nextToEmit++
+        }
+        inFlight--
+        if (nextToEmit > total && inFlight === 0) {
+          settled = true
+          resolve(slots)
+        } else {
+          tryLaunch()
+        }
       }
-    }
-    return result
+
+      function tryLaunch() {
+        while (!settled && inFlight < CONCURRENCY && nextToFetch <= total) {
+          const n = nextToFetch++
+          inFlight++
+          PdfParser.withTimeout(
+            pdf.getPage(n),
+            options.pageLoadTimeoutMs,
+            `Timed out while loading page ${n} during PDF encode`
+          )
+            .then((page) => onPageLoaded(page, n))
+            .catch((err) => {
+              inFlight--
+              if (!settled) {
+                settled = true
+                reject(err)
+              }
+            })
+        }
+      }
+      tryLaunch()
+    })
   }
 
   private static async withTimeout<T>(

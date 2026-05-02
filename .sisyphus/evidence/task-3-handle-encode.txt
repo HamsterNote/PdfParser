@@ -1,0 +1,7 @@
+Task 3 Evidence
+
+demo handleEncode tests passed:
+- renders shell immediately and updates progressively
+- ignores stale serializer updates from older encode runs
+- preserves error handling when encode throws
+

@@ -16,22 +16,6 @@ function buildPageSummary(page, texts) {
   }
 }
 
-async function resolvePages(intermediate) {
-  const pages = await intermediate.pages
-  return Promise.all(
-    pages.map(async (page) => {
-      let texts = []
-      if (Array.isArray(page.texts)) {
-        texts = page.texts
-      } else if (typeof page.getTexts === 'function') {
-        texts = await page.getTexts()
-      }
-
-      return buildPageSummary(page, texts)
-    })
-  )
-}
-
 async function resolveCoverAvailable(intermediate) {
   if (typeof intermediate.getCover !== 'function') {
     return false
@@ -41,20 +25,128 @@ async function resolveCoverAvailable(intermediate) {
   return typeof cover === 'string' && cover.length > 0
 }
 
-export async function serializeIntermediate(intermediate) {
+export function createProgressiveSerializer(intermediate) {
   const outline =
     typeof intermediate.getOutline === 'function'
       ? (intermediate.getOutline() ?? [])
       : (intermediate.outline ?? [])
-  const pages = await resolvePages(intermediate)
 
-  return {
+  const pageCount = intermediate.pageCount
+  const pageNumbers = intermediate.pageNumbers
+
+  // Build placeholder pages using synchronous metadata
+  const placeholderPages = pageNumbers.map((num) => {
+    const size = intermediate.getPageSizeByPageNumber(num)
+    return {
+      number: num,
+      width: size?.x ?? 0,
+      height: size?.y ?? 0,
+      textCount: 0,
+      previewText: []
+    }
+  })
+
+  const shell = {
     id: intermediate.id,
     title: intermediate.title,
-    pageCount: pages.length,
+    pageCount,
     hasOutline: outline.length > 0,
-    pageNumbers: pages.map((page) => page.number),
-    coverAvailable: await resolveCoverAvailable(intermediate),
-    pages
+    pageNumbers,
+    coverAvailable: false,
+    pages: placeholderPages
   }
+
+  const coverAvailablePromise = resolveCoverAvailable(intermediate)
+  coverAvailablePromise.then((available) => {
+    shell.coverAvailable = available
+  })
+
+  const pageSummaryCache = new Array(pageCount).fill(undefined)
+  const subscribers = []
+  let resolutionError = null
+
+  function notifySubscribers() {
+    const snapshot = buildFullSnapshot()
+    for (const cb of subscribers) {
+      cb(snapshot)
+    }
+  }
+
+  function buildFullSnapshot() {
+    return {
+      id: shell.id,
+      title: shell.title,
+      pageCount: shell.pageCount,
+      hasOutline: shell.hasOutline,
+      pageNumbers: shell.pageNumbers,
+      coverAvailable: shell.coverAvailable,
+      pages: pageSummaryCache.map((s, i) =>
+        s !== undefined ? s : placeholderPages[i]
+      )
+    }
+  }
+
+  ;(async () => {
+    for (let i = 0; i < pageNumbers.length; i++) {
+      const num = pageNumbers[i]
+      try {
+        const page = await intermediate.getPageByPageNumber(num)
+        if (page === undefined) {
+          pageSummaryCache[i] = {
+            number: num,
+            width: 0,
+            height: 0,
+            textCount: 0,
+            previewText: []
+          }
+          continue
+        }
+        let texts = []
+        if (Array.isArray(page.texts)) {
+          texts = page.texts
+        } else if (typeof page.getTexts === 'function') {
+          texts = await page.getTexts()
+        }
+        const summary = buildPageSummary(page, texts)
+        pageSummaryCache[i] = summary
+        notifySubscribers()
+      } catch (err) {
+        resolutionError = err
+        notifySubscribers()
+        break
+      }
+    }
+  })()
+
+  return {
+    shell,
+
+    onUpdate(callback) {
+      subscribers.push(callback)
+      if (pageSummaryCache.some((s) => s !== undefined)) {
+        callback(buildFullSnapshot())
+      }
+    },
+
+    resolve() {
+      return (async () => {
+        if (resolutionError) {
+          throw resolutionError
+        }
+        while (pageSummaryCache.some((s) => s === undefined)) {
+          if (resolutionError) {
+            throw resolutionError
+          }
+          await new Promise((r) => setTimeout(r, 5))
+        }
+        await coverAvailablePromise
+        return buildFullSnapshot()
+      })()
+    }
+  }
+}
+
+export async function serializeIntermediate(intermediate) {
+  const serializer = createProgressiveSerializer(intermediate)
+  return serializer.resolve()
 }
