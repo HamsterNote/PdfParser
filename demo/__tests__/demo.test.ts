@@ -34,6 +34,8 @@ function createElementMock() {
     textContent: '',
     innerHTML: '',
     disabled: false,
+    hidden: false,
+    checked: true,
     dataset: {} as Record<string, string>,
     classList: {
       toggle: jest.fn()
@@ -59,12 +61,15 @@ async function setupDemo() {
   const fileInput = createElementMock()
   const encodeButton = createElementMock()
   const decodeButton = createElementMock()
+  const jsonOutputToggle = createElementMock()
   const statusElement = createElementMock()
   const errorElement = createElementMock()
+  const jsonOutputCardElement = createElementMock()
   const outputElement = createElementMock()
   const previewElement = createElementMock()
   const previewNoteElement = createElementMock()
   const summaryElement = createElementMock()
+  const diagnosticsElement = createElementMock()
   const decodeStatusElement = createElementMock()
   const decodePreviewElement = createElementMock()
   const decodePreviewNoteElement = createElementMock()
@@ -72,10 +77,12 @@ async function setupDemo() {
   const queryMap = new Map<string, unknown>([
     ['[data-role="status"]', statusElement],
     ['[data-role="error"]', errorElement],
+    ['[data-role="json-output-card"]', jsonOutputCardElement],
     ['[data-role="output"]', outputElement],
     ['[data-role="preview"]', previewElement],
     ['[data-role="preview-note"]', previewNoteElement],
     ['[data-role="summary"] .summary-content', summaryElement],
+    ['[data-role="diagnostics"] .diagnostics-content', diagnosticsElement],
     ['[data-role="decode-status"]', decodeStatusElement],
     ['[data-role="decode-preview"]', decodePreviewElement],
     ['[data-role="decode-preview-note"]', decodePreviewNoteElement]
@@ -89,6 +96,8 @@ async function setupDemo() {
   const configureDecodeFontMock = jest.fn()
 
   const serializerFactoryMock = jest.fn()
+  const consoleInfo = jest.spyOn(console, 'info').mockImplementation(() => {})
+  const consoleTable = jest.spyOn(console, 'table').mockImplementation(() => {})
 
   ;(globalThis as unknown as { fetch: unknown }).fetch = jest.fn(async () => ({
     ok: true
@@ -104,6 +113,7 @@ async function setupDemo() {
       if (id === 'pdf-file-input') return fileInput
       if (id === 'encode-button') return encodeButton
       if (id === 'decode-button') return decodeButton
+      if (id === 'json-output-toggle') return jsonOutputToggle
       return null
     }),
     querySelector: jest.fn(
@@ -113,9 +123,11 @@ async function setupDemo() {
   }
 
   ;(globalThis as unknown as { document: unknown }).document = documentMock
-  ;(globalThis as unknown as { window: unknown }).window = {
+  const windowMock = {
+    __pdfParserDemoDiagnostics: undefined,
     addEventListener: jest.fn()
   }
+  ;(globalThis as unknown as { window: unknown }).window = windowMock
 
   await jest.unstable_mockModule('../demoDocumentSerialization.js', () => ({
     createProgressiveSerializer: serializerFactoryMock
@@ -153,15 +165,21 @@ async function setupDemo() {
 
   return {
     encodeButton,
+    jsonOutputToggle,
+    jsonOutputCardElement,
     statusElement,
     errorElement,
     summaryElement,
+    diagnosticsElement,
     decodeButton,
     renderData,
     updateData,
     renderMessage,
     encodeMock,
-    serializerFactoryMock
+    serializerFactoryMock,
+    windowMock,
+    consoleInfo,
+    consoleTable
   }
 }
 
@@ -230,6 +248,229 @@ describe('demo handleEncode progressive behavior', () => {
     expect(env.updateData).toHaveBeenCalledWith(finalSnapshot)
     expect(env.statusElement.textContent).toBe('Encode ready')
     expect(env.decodeButton.disabled).toBe(false)
+    expect(env.diagnosticsElement.innerHTML).toContain(
+      '<strong>Complete → Ready:</strong>'
+    )
+    expect(env.diagnosticsElement.innerHTML).toContain(
+      'window.__pdfParserDemoDiagnostics.lastEncode'
+    )
+    expect(env.windowMock.__pdfParserDemoDiagnostics.lastEncode.totals).toEqual(
+      expect.objectContaining({
+        serializerResolveMs: expect.any(Number),
+        totalEncodeFlowMs: expect.any(Number)
+      })
+    )
+    expect(env.consoleInfo).toHaveBeenCalled()
+  })
+
+  it('skips JSON rendering while toggle is unchecked and restores latest snapshot when re-enabled', async () => {
+    const env = await setupDemo()
+
+    const shell = {
+      id: 'doc-1',
+      title: 'Doc 1',
+      pageCount: 1,
+      hasOutline: false,
+      pageNumbers: [1],
+      coverAvailable: false,
+      pages: [
+        { number: 1, width: 100, height: 100, textCount: 0, previewText: [] }
+      ]
+    }
+    const finalSnapshot = {
+      ...shell,
+      pages: [
+        { number: 1, width: 100, height: 100, textCount: 2, previewText: [] }
+      ]
+    }
+
+    env.serializerFactoryMock.mockReturnValue({
+      shell,
+      onUpdate: jest.fn(),
+      resolve: jest.fn().mockResolvedValue(finalSnapshot)
+    })
+    env.encodeMock.mockResolvedValue({ id: 'intermediate-1' })
+
+    env.jsonOutputToggle.checked = false
+    env.jsonOutputToggle.trigger('change')
+
+    expect(env.jsonOutputCardElement.hidden).toBe(true)
+
+    env.encodeButton.trigger('click')
+    await flushTicks()
+
+    expect(env.renderMessage).not.toHaveBeenCalledWith('Working...')
+    expect(env.renderData).not.toHaveBeenCalledWith(shell)
+    expect(env.updateData).not.toHaveBeenCalledWith(finalSnapshot)
+
+    env.jsonOutputToggle.checked = true
+    env.jsonOutputToggle.trigger('change')
+
+    expect(env.jsonOutputCardElement.hidden).toBe(false)
+    expect(env.renderData).toHaveBeenLastCalledWith(finalSnapshot)
+  })
+
+  it('passes serializer page and cover diagnostics into window state', async () => {
+    const env = await setupDemo()
+
+    const intermediate = { id: 'doc-diag', title: 'Doc Diag' }
+    const shell = {
+      id: 'doc-diag',
+      title: 'Doc Diag',
+      pageCount: 1,
+      hasOutline: false,
+      pageNumbers: [1],
+      coverAvailable: false,
+      pages: [
+        { number: 1, width: 100, height: 100, textCount: 0, previewText: [] }
+      ]
+    }
+    const finalSnapshot = {
+      ...shell,
+      pages: [
+        { number: 1, width: 100, height: 100, textCount: 2, previewText: [] }
+      ]
+    }
+
+    let serializerOptions:
+      | { onDiagnostic?: (event: Record<string, unknown>) => void }
+      | undefined
+    env.serializerFactoryMock.mockImplementation((_, options) => {
+      serializerOptions = options
+      return {
+        shell,
+        onUpdate: jest.fn(),
+        resolve: async () => finalSnapshot
+      }
+    })
+    env.encodeMock.mockImplementation(async (_buffer, _options, onProgress) => {
+      onProgress?.({ stage: 'encode:start', current: 0, total: 1 })
+      onProgress?.({ stage: 'encode:complete', current: 1, total: 1 })
+      return intermediate
+    })
+
+    env.encodeButton.trigger('click')
+    await flushTicks()
+
+    serializerOptions?.onDiagnostic?.({
+      type: 'page',
+      pageNumber: 1,
+      totalDurationMs: 12,
+      resolvePageMs: 4,
+      resolveTextsMs: 7,
+      buildSummaryMs: 1,
+      textCount: 2,
+      missing: false
+    })
+    serializerOptions?.onDiagnostic?.({
+      type: 'cover',
+      available: true,
+      durationMs: 3,
+      skipped: false
+    })
+    await flushTicks()
+
+    expect(
+      env.windowMock.__pdfParserDemoDiagnostics.lastEncode.pageDiagnostics
+    ).toEqual([
+      expect.objectContaining({
+        pageNumber: 1,
+        resolveTextsMs: 7,
+        textCount: 2
+      })
+    ])
+    expect(
+      env.windowMock.__pdfParserDemoDiagnostics.lastEncode.coverDiagnostic
+    ).toEqual(
+      expect.objectContaining({
+        available: true,
+        durationMs: 3,
+        skipped: false
+      })
+    )
+    expect(env.diagnosticsElement.innerHTML).toContain(
+      '<strong>Hotspot:</strong>'
+    )
+  })
+
+  it('surfaces post-encode serializer progress in the main Demo status', async () => {
+    const env = await setupDemo()
+
+    const intermediate = { id: 'doc-progress', title: 'Doc Progress' }
+    const shell = {
+      id: 'doc-progress',
+      title: 'Doc Progress',
+      pageCount: 2,
+      hasOutline: false,
+      pageNumbers: [1, 2],
+      coverAvailable: false,
+      pages: [
+        { number: 1, width: 100, height: 100, textCount: 0, previewText: [] },
+        { number: 2, width: 100, height: 100, textCount: 0, previewText: [] }
+      ]
+    }
+    const finalSnapshot = {
+      ...shell,
+      pages: [
+        { number: 1, width: 100, height: 100, textCount: 1, previewText: [] },
+        { number: 2, width: 100, height: 100, textCount: 1, previewText: [] }
+      ]
+    }
+
+    const resolveDeferred = createDeferred<typeof finalSnapshot>()
+    let serializerOptions:
+      | { onProgress?: (event: Record<string, unknown>) => void }
+      | undefined
+
+    env.serializerFactoryMock.mockImplementation((_, options) => {
+      serializerOptions = options
+      return {
+        shell,
+        onUpdate: jest.fn(),
+        resolve: () => resolveDeferred.promise
+      }
+    })
+    env.encodeMock.mockImplementation(async (_buffer, _options, onProgress) => {
+      onProgress?.({ stage: 'encode:start', current: 0, total: 2 })
+      onProgress?.({ stage: 'encode:complete', current: 2, total: 2 })
+      return intermediate
+    })
+
+    env.encodeButton.trigger('click')
+    await flushTicks()
+
+    serializerOptions?.onProgress?.({
+      stage: 'serialize:start',
+      current: 0,
+      total: 3,
+      pageCount: 2
+    })
+    expect(env.statusElement.textContent).toContain('Finalizing Demo output')
+
+    serializerOptions?.onProgress?.({
+      stage: 'serialize:page',
+      current: 1,
+      total: 3,
+      pageNumber: 1,
+      pageCount: 2
+    })
+    expect(env.statusElement.textContent).toContain('Summarized page 1')
+
+    serializerOptions?.onProgress?.({
+      stage: 'serialize:cover',
+      current: 2,
+      total: 3,
+      available: true,
+      pageCount: 2
+    })
+    expect(env.statusElement.textContent).toContain(
+      'Checked cover availability'
+    )
+
+    resolveDeferred.resolve(finalSnapshot)
+    await flushTicks()
+
+    expect(env.statusElement.textContent).toBe('Encode ready')
   })
 
   it('ignores stale serializer updates from older encode runs', async () => {
@@ -332,6 +573,9 @@ describe('demo handleEncode progressive behavior', () => {
 
     expect(env.renderMessage).toHaveBeenLastCalledWith('boom')
     expect(env.statusElement.textContent).toBe('Encode failed')
+    expect(env.diagnosticsElement.innerHTML).toContain(
+      'Encode failed before diagnostics completed: boom'
+    )
     expect(env.errorElement.textContent).toBe(
       'Encoding failed. See JSON output for details.'
     )

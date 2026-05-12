@@ -429,6 +429,65 @@ describe('demoDocumentSerialization', () => {
       expect(updates[updates.length - 1].pageNumbers).toEqual([1, 2, 3])
     })
 
+    it('emits post-encode progress events while resolving summaries', async () => {
+      const doc = makeDocument({
+        id: 'doc-progress',
+        title: 'Progress Test',
+        pages: [
+          {
+            id: 'p1',
+            number: 1,
+            width: 612,
+            height: 792,
+            texts: [makeText('Hello')]
+          },
+          {
+            id: 'p2',
+            number: 2,
+            width: 612,
+            height: 792,
+            texts: [makeText('World')]
+          }
+        ]
+      })
+
+      const progressEvents: Array<{
+        stage: string
+        current: number
+        total: number
+      }> = []
+      const serializer = createProgressiveSerializer(doc, {
+        onProgress: (event) => {
+          progressEvents.push({
+            stage: event.stage,
+            current: event.current,
+            total: event.total
+          })
+        }
+      })
+
+      await serializer.resolve()
+
+      expect(progressEvents[0]).toEqual(
+        expect.objectContaining({
+          stage: 'serialize:start',
+          current: 0
+        })
+      )
+      expect(
+        progressEvents.filter((event) => event.stage === 'serialize:page')
+      ).toHaveLength(2)
+      expect(
+        progressEvents.some((event) => event.stage === 'serialize:cover')
+      ).toBe(true)
+      expect(progressEvents[progressEvents.length - 1]).toEqual(
+        expect.objectContaining({
+          stage: 'serialize:complete',
+          current: progressEvents[progressEvents.length - 1].total
+        })
+      )
+    })
+
     it('does not use Promise.all for page text resolution', async () => {
       const pages = createPagesWithDelayedTexts(
         [

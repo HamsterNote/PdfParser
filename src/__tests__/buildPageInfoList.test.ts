@@ -1,5 +1,5 @@
-import { describe, expect, it, jest } from '@jest/globals'
 import { PdfParser } from '@PdfParser'
+import { describe, expect, it, jest } from '@jest/globals'
 import type {
   PDFDocumentProxy,
   PDFPageProxy
@@ -35,6 +35,13 @@ function createProgressTrackerWithDetails() {
   }
 }
 
+function createEmptyTextContent() {
+  return {
+    items: [],
+    styles: Object.create(null)
+  }
+}
+
 function createConcurrentGetPageMock(
   pageDelayMs: number,
   maxConcurrentRef: { value: number },
@@ -50,6 +57,7 @@ function createConcurrentGetPageMock(
         width: 100 + pageNumber,
         height: 200 + pageNumber
       }),
+      getTextContent: async () => createEmptyTextContent(),
       cleanup: jest.fn()
     } as unknown as PDFPageProxy
   })
@@ -64,6 +72,7 @@ function createDelayedGetPageMock(pageDelayMs: number) {
         width: 100 + pageNumber,
         height: 200 + pageNumber
       }),
+      getTextContent: async () => createEmptyTextContent(),
       cleanup: jest.fn()
     } as unknown as PDFPageProxy
   })
@@ -77,6 +86,7 @@ function createSimpleGetPageMock() {
         width: 100,
         height: 200
       }),
+      getTextContent: async () => createEmptyTextContent(),
       cleanup: jest.fn()
     } as unknown as PDFPageProxy
   })
@@ -91,6 +101,7 @@ function createVariableDelayGetPageMock() {
         width: 100 * pageNumber,
         height: 200 * pageNumber
       }),
+      getTextContent: async () => createEmptyTextContent(),
       cleanup: jest.fn()
     } as unknown as PDFPageProxy
   })
@@ -104,7 +115,7 @@ function createLazyGetPageMock() {
         width: 100,
         height: 200
       }),
-      getTextContent: jest.fn().mockResolvedValue({ items: [] }),
+      getTextContent: jest.fn().mockResolvedValue(createEmptyTextContent()),
       cleanup: jest.fn()
     } as unknown as PDFPageProxy
   })
@@ -117,6 +128,7 @@ function createMaxPagesGetPageMock() {
         width: 100,
         height: 200
       }),
+      getTextContent: async () => createEmptyTextContent(),
       cleanup: jest.fn()
     } as unknown as PDFPageProxy
   })
@@ -144,6 +156,59 @@ describe('buildPageInfoList', () => {
       >
     }
   ).buildPageInfoList.bind(PdfParser)
+
+  const encodeYield = (
+    PdfParser as unknown as {
+      encodeYield: () => Promise<void>
+    }
+  ).encodeYield.bind(PdfParser)
+
+  const resolvePageScanBatchSize = (
+    PdfParser as unknown as {
+      resolvePageScanBatchSize: (totalPages: number) => number
+    }
+  ).resolvePageScanBatchSize.bind(PdfParser)
+
+  describe('encodeYield scheduler', () => {
+    type SchedulerGlobal = {
+      scheduler?: { yield?: () => Promise<void> }
+    }
+
+    it('uses scheduler.yield when available', async () => {
+      const schedulerGlobal = globalThis as unknown as SchedulerGlobal
+      const originalScheduler = schedulerGlobal.scheduler
+      const yieldMock = jest.fn(async () => undefined)
+
+      schedulerGlobal.scheduler = { yield: yieldMock }
+
+      try {
+        await encodeYield()
+
+        expect(yieldMock).toHaveBeenCalledTimes(1)
+      } finally {
+        if (originalScheduler === undefined) {
+          delete schedulerGlobal.scheduler
+        } else {
+          schedulerGlobal.scheduler = originalScheduler
+        }
+      }
+    })
+
+    it('falls back to a timer when scheduler is unavailable', async () => {
+      const schedulerGlobal = globalThis as unknown as SchedulerGlobal
+      const originalScheduler = schedulerGlobal.scheduler
+
+      delete schedulerGlobal.scheduler
+
+      try {
+        await expect(encodeYield()).resolves.toBeUndefined()
+      } finally {
+        if (originalScheduler !== undefined) {
+          schedulerGlobal.scheduler = originalScheduler
+        }
+      }
+    })
+  })
 
   describe('edge cases', () => {
     it('returns empty array when total is 0', async () => {
@@ -185,7 +250,7 @@ describe('buildPageInfoList', () => {
   })
 
   describe('bounded concurrency', () => {
-    it('respects max 4 in-flight getPage calls at any time', async () => {
+    it('reduces in-flight getPage calls for larger documents', async () => {
       const pageDelayMs = 50
       const maxConcurrentRef = { value: 0 }
       const maxConcurrentList: number[] = []
@@ -207,7 +272,69 @@ describe('buildPageInfoList', () => {
       })
 
       expect(getPage).toHaveBeenCalledTimes(10)
+      expect(Math.max(...maxConcurrentList)).toBeLessThanOrEqual(2)
+    })
+
+    it('keeps wider concurrency for small documents', async () => {
+      const pageDelayMs = 50
+      const maxConcurrentRef = { value: 0 }
+      const maxConcurrentList: number[] = []
+
+      const getPage = createConcurrentGetPageMock(
+        pageDelayMs,
+        maxConcurrentRef,
+        maxConcurrentList
+      )
+
+      const pdf = {
+        numPages: 4,
+        getPage
+      } as unknown as PDFDocumentProxy
+
+      await buildPageInfoList(pdf, 'pdf-id', {
+        maxPages: 4,
+        pageLoadTimeoutMs: 5000
+      })
+
+      expect(getPage).toHaveBeenCalledTimes(4)
       expect(Math.max(...maxConcurrentList)).toBeLessThanOrEqual(4)
+    })
+
+    it('falls back to sequential page loading for large documents', async () => {
+      const pageDelayMs = 50
+      const maxConcurrentRef = { value: 0 }
+      const maxConcurrentList: number[] = []
+
+      const getPage = createConcurrentGetPageMock(
+        pageDelayMs,
+        maxConcurrentRef,
+        maxConcurrentList
+      )
+
+      const pdf = {
+        numPages: 20,
+        getPage
+      } as unknown as PDFDocumentProxy
+
+      await buildPageInfoList(pdf, 'pdf-id', {
+        maxPages: 20,
+        pageLoadTimeoutMs: 5000
+      })
+
+      expect(getPage).toHaveBeenCalledTimes(20)
+      expect(Math.max(...maxConcurrentList)).toBeLessThanOrEqual(1)
+    })
+  })
+
+  describe('batch sizing', () => {
+    it('keeps single-session scanning for documents up to 12 pages', () => {
+      expect(resolvePageScanBatchSize(4)).toBe(4)
+      expect(resolvePageScanBatchSize(12)).toBe(12)
+    })
+
+    it('uses 8-page batches for larger documents', () => {
+      expect(resolvePageScanBatchSize(13)).toBe(8)
+      expect(resolvePageScanBatchSize(20)).toBe(8)
     })
   })
 
@@ -282,7 +409,7 @@ describe('buildPageInfoList', () => {
       expect(result[3].id).toBe('pdf-id-page-4')
     })
 
-    it('getData closures remain lazy - do not call buildIntermediatePage until invoked', async () => {
+    it('getData closures reuse the preloaded page data', async () => {
       const getPage = createLazyGetPageMock()
 
       const pdf = {
@@ -299,7 +426,7 @@ describe('buildPageInfoList', () => {
 
       await result[0].getData()
 
-      expect(getPage.mock.calls.length).toBeGreaterThan(getPageCallsBefore)
+      expect(getPage.mock.calls.length).toBe(getPageCallsBefore)
     })
 
     it('maxPages limits the number of pages processed', async () => {
@@ -318,6 +445,105 @@ describe('buildPageInfoList', () => {
       expect(result).toHaveLength(5)
       expect(getPage).toHaveBeenCalledTimes(5)
       expect(result[4].pageNumber).toBe(5)
+    })
+  })
+
+  describe('responsiveness scheduling', () => {
+    const yieldHook = jest.fn()
+
+    beforeEach(() => {
+      yieldHook.mockClear()
+      const exposed = PdfParser as unknown as {
+        __yieldHook: typeof yieldHook
+      }
+      exposed.__yieldHook = yieldHook
+    })
+
+    afterEach(() => {
+      const exposed = PdfParser as unknown as {
+        __yieldHook?: typeof yieldHook
+      }
+      delete exposed.__yieldHook
+    })
+
+    it('calls yield hook on replenishment for multi-page work (5 pages)', async () => {
+      const pageDelayMs = 30
+      const tracker = createProgressTracker()
+
+      const getPage = createDelayedGetPageMock(pageDelayMs)
+
+      const pdf = {
+        numPages: 5,
+        getPage
+      } as unknown as PDFDocumentProxy
+
+      await buildPageInfoList(
+        pdf,
+        'pdf-id',
+        {
+          maxPages: 5,
+          pageLoadTimeoutMs: 5000
+        },
+        tracker.onProgress
+      )
+
+      expect(yieldHook.mock.calls.length).toBeGreaterThanOrEqual(1)
+
+      expect(tracker.progressEvents).toEqual([1, 2, 3, 4, 5])
+
+      // All 5 pages should be processed
+      expect(getPage).toHaveBeenCalledTimes(5)
+    })
+
+    it('does NOT call yield hook for single-page work', async () => {
+      const tracker = createProgressTracker()
+
+      const getPage = createSimpleGetPageMock()
+
+      const pdf = {
+        numPages: 1,
+        getPage
+      } as unknown as PDFDocumentProxy
+
+      await buildPageInfoList(
+        pdf,
+        'pdf-id',
+        {
+          maxPages: 1,
+          pageLoadTimeoutMs: 5000
+        },
+        tracker.onProgress
+      )
+
+      expect(yieldHook).not.toHaveBeenCalled()
+
+      expect(tracker.progressEvents).toEqual([1])
+    })
+
+    it('bounds getPage concurrency to <= 2 for medium documents', async () => {
+      const pageDelayMs = 50
+      const maxConcurrentRef = { value: 0 }
+      const maxConcurrentList: number[] = []
+
+      const getPage = createConcurrentGetPageMock(
+        pageDelayMs,
+        maxConcurrentRef,
+        maxConcurrentList
+      )
+
+      const pdf = {
+        numPages: 8,
+        getPage
+      } as unknown as PDFDocumentProxy
+
+      await buildPageInfoList(pdf, 'pdf-id', {
+        maxPages: 8,
+        pageLoadTimeoutMs: 5000
+      })
+
+      expect(getPage).toHaveBeenCalledTimes(8)
+
+      expect(Math.max(...maxConcurrentList)).toBeLessThanOrEqual(2)
     })
   })
 })

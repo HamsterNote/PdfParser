@@ -5,6 +5,42 @@ import { renderPreviewFrame, setPreviewMessage } from './demoPreview.js'
 
 const DEMO_FALLBACK_FONT_URL = './assets/NotoSansSC-Regular.otf'
 
+const getNow = () => {
+  if (
+    typeof performance !== 'undefined' &&
+    typeof performance.now === 'function'
+  ) {
+    return performance.now()
+  }
+
+  return Date.now()
+}
+
+const roundMs = (value) => Number(value.toFixed(2))
+
+const publishEncodeDiagnostics = (diagnostics) => {
+  const globalWindow = typeof window !== 'undefined' ? window : globalThis
+  const target = globalWindow
+
+  if (!target.__pdfParserDemoDiagnostics) {
+    target.__pdfParserDemoDiagnostics = {}
+  }
+
+  target.__pdfParserDemoDiagnostics.lastEncode = diagnostics
+
+  if (typeof console === 'undefined' || typeof console.info !== 'function') {
+    return
+  }
+
+  console.info('[PdfParser demo] Encode diagnostics', diagnostics)
+  if (
+    typeof console.table === 'function' &&
+    diagnostics.pageDiagnostics.length > 0
+  ) {
+    console.table(diagnostics.pageDiagnostics)
+  }
+}
+
 const configureDemoDecodeFonts = async () => {
   try {
     const response = await fetch(DEMO_FALLBACK_FONT_URL, { method: 'HEAD' })
@@ -27,14 +63,21 @@ const loadSampleButton = document.getElementById('demo-load-sample')
 const fileInput = document.getElementById('pdf-file-input')
 const encodeButton = document.getElementById('encode-button')
 const decodeButton = document.getElementById('decode-button')
+const jsonOutputToggle = document.getElementById('json-output-toggle')
 const statusElement = document.querySelector('[data-role="status"]')
 const errorElement = document.querySelector('[data-role="error"]')
+const jsonOutputCardElement = document.querySelector(
+  '[data-role="json-output-card"]'
+)
 const outputElement = document.querySelector('[data-role="output"]')
 const jsonRenderer = createJsonOutputRenderer(outputElement)
 const previewElement = document.querySelector('[data-role="preview"]')
 const previewNoteElement = document.querySelector('[data-role="preview-note"]')
 const summaryElement = document.querySelector(
   '[data-role="summary"] .summary-content'
+)
+const diagnosticsElement = document.querySelector(
+  '[data-role="diagnostics"] .diagnostics-content'
 )
 const decodeStatusElement = document.querySelector(
   '[data-role="decode-status"]'
@@ -51,6 +94,71 @@ let currentIntermediateDocument = null
 let currentPagePreviewUrl = null
 let currentDecodePreviewUrl = null
 let activeDecodeContextId = 0
+let latestJsonOutput = {
+  kind: 'message',
+  value:
+    'Click "Load Sample PDF" or upload a PDF file, then click "Encode PDF".'
+}
+
+const isJsonOutputEnabled = () => jsonOutputToggle?.checked !== false
+
+const syncJsonOutputVisibility = () => {
+  if (jsonOutputCardElement) {
+    jsonOutputCardElement.hidden = !isJsonOutputEnabled()
+  }
+}
+
+const renderLatestJsonOutput = () => {
+  if (!isJsonOutputEnabled()) {
+    return
+  }
+
+  if (latestJsonOutput.kind === 'data') {
+    jsonRenderer.renderData(latestJsonOutput.value)
+    return
+  }
+
+  jsonRenderer.renderMessage(latestJsonOutput.value)
+}
+
+const setJsonOutputMessage = (message) => {
+  latestJsonOutput = {
+    kind: 'message',
+    value: message
+  }
+
+  if (!isJsonOutputEnabled()) {
+    return
+  }
+
+  jsonRenderer.renderMessage(message)
+}
+
+const renderJsonOutputData = (data) => {
+  latestJsonOutput = {
+    kind: 'data',
+    value: data
+  }
+
+  if (!isJsonOutputEnabled()) {
+    return
+  }
+
+  jsonRenderer.renderData(data)
+}
+
+const updateJsonOutputData = (data) => {
+  latestJsonOutput = {
+    kind: 'data',
+    value: data
+  }
+
+  if (!isJsonOutputEnabled()) {
+    return
+  }
+
+  jsonRenderer.updateData(data)
+}
 
 const setStatus = (text) => {
   if (statusElement) {
@@ -80,6 +188,100 @@ const setSummary = (html) => {
   if (summaryElement) {
     summaryElement.innerHTML = html
   }
+}
+
+const setDiagnostics = (html) => {
+  if (diagnosticsElement) {
+    diagnosticsElement.innerHTML = html
+  }
+}
+
+const formatMetricValue = (value) => {
+  if (!Number.isFinite(value)) {
+    return 'N/A'
+  }
+
+  return `${value.toFixed(2)} ms`
+}
+
+const renderDiagnosticsPlaceholder = (message) => {
+  setDiagnostics(`
+    <p class="diagnostics-placeholder">${escapeHtml(message)}</p>
+  `)
+}
+
+const escapeHtml = (text) => {
+  return String(text)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+const getSlowestPageDiagnostic = (pageDiagnostics) => {
+  if (!Array.isArray(pageDiagnostics) || pageDiagnostics.length === 0) {
+    return null
+  }
+
+  return pageDiagnostics.reduce((slowest, current) => {
+    const currentDuration = Number.isFinite(current.totalDurationMs)
+      ? current.totalDurationMs
+      : -1
+    const slowestDuration = Number.isFinite(slowest?.totalDurationMs)
+      ? slowest.totalDurationMs
+      : -1
+
+    return currentDuration > slowestDuration ? current : slowest
+  }, null)
+}
+
+const renderEncodeDiagnostics = (diagnostics) => {
+  if (!diagnostics || diagnostics.failure) {
+    const failureMessage = diagnostics?.failure
+      ? `Encode failed before diagnostics completed: ${diagnostics.failure}`
+      : 'Run Encode to inspect where complete-to-ready time is spent.'
+    renderDiagnosticsPlaceholder(failureMessage)
+    return
+  }
+
+  const totals = diagnostics.totals ?? {}
+  const pageDiagnostics = Array.isArray(diagnostics.pageDiagnostics)
+    ? diagnostics.pageDiagnostics
+    : []
+  const slowestPage = getSlowestPageDiagnostic(pageDiagnostics)
+  const pageCount = pageDiagnostics.filter((entry) => !entry.error).length
+  let coverSummary = 'Cover timing not recorded.'
+  if (diagnostics.coverDiagnostic) {
+    if (diagnostics.coverDiagnostic.skipped) {
+      coverSummary = 'Cover generation skipped.'
+    } else {
+      const coverAvailability = diagnostics.coverDiagnostic.available
+        ? 'available'
+        : 'missing'
+      coverSummary = `Cover ${coverAvailability} in ${formatMetricValue(diagnostics.coverDiagnostic.durationMs)}.`
+    }
+  }
+
+  let bottleneck = 'Waiting for serializer completion dominated.'
+  if (slowestPage && Number.isFinite(slowestPage.resolveTextsMs)) {
+    bottleneck = `Slowest page: ${slowestPage.pageNumber} (${formatMetricValue(slowestPage.totalDurationMs)} total, ${formatMetricValue(slowestPage.resolveTextsMs)} in text resolution).`
+  } else if (Number.isFinite(diagnostics.coverDiagnostic?.durationMs)) {
+    bottleneck = `Cover work took ${formatMetricValue(diagnostics.coverDiagnostic.durationMs)}.`
+  }
+
+  setDiagnostics(`
+    <p><strong>Complete → Ready:</strong> ${formatMetricValue(totals.completeToReadyMs)}</p>
+    <p><strong>Serializer Wait:</strong> ${formatMetricValue(totals.serializerResolveMs)}</p>
+    <p><strong>Total Encode Flow:</strong> ${formatMetricValue(totals.totalEncodeFlowMs)}</p>
+    <p><strong>Pages Profiled:</strong> ${pageCount}</p>
+    <p><strong>Hotspot:</strong> ${escapeHtml(bottleneck)}</p>
+    <p><strong>Cover:</strong> ${escapeHtml(coverSummary)}</p>
+    <ul class="diagnostics-list">
+      <li>Inspect raw data in <code>window.__pdfParserDemoDiagnostics.lastEncode</code>.</li>
+      <li>Use <code>pageDiagnostics</code> to compare per-page text resolution cost.</li>
+    </ul>
+  `)
 }
 
 const resetPreview = () => {
@@ -245,6 +447,55 @@ const formatEncodeProgressText = (event) => {
   return 'Encoding PDF pages...'
 }
 
+const formatSerializerProgressText = (event) => {
+  const total = Number.isFinite(event?.total) ? event.total : 0
+  const current = Number.isFinite(event?.current) ? event.current : 0
+
+  if (event?.stage === 'serialize:start') {
+    if (total > 0) {
+      return `Encoding complete. Finalizing Demo output (${current} / ${total})...`
+    }
+
+    return 'Encoding complete. Finalizing Demo output...'
+  }
+
+  if (event?.stage === 'serialize:complete') {
+    return 'Finalization complete. Preparing decode preview...'
+  }
+
+  if (event?.stage === 'serialize:cover') {
+    return `Encoding complete. Checked cover availability (${current} / ${total})...`
+  }
+
+  if (event?.stage === 'serialize:page' && Number.isFinite(event?.pageNumber)) {
+    return `Encoding complete. Summarized page ${event.pageNumber} (${current} / ${total})...`
+  }
+
+  if (total > 0) {
+    return `Encoding complete. Finalizing Demo output (${current} / ${total})...`
+  }
+
+  return 'Encoding complete. Finalizing Demo output...'
+}
+
+const formatSerializerPreviewNote = (event) => {
+  if (event?.stage === 'serialize:page' && Number.isFinite(event?.pageCount)) {
+    return `Building preview data for page ${event.pageNumber} of ${event.pageCount}.`
+  }
+
+  if (event?.stage === 'serialize:cover') {
+    return event.available
+      ? 'Cover preview is available. Continuing page summaries...'
+      : 'Cover preview is unavailable. Continuing page summaries...'
+  }
+
+  if (event?.stage === 'serialize:complete') {
+    return 'Demo output is ready. Restoring decode actions...'
+  }
+
+  return 'Finalizing the restored PDF preview...'
+}
+
 const renderPagePreview = (file) => {
   if (!file || !(file instanceof Blob)) {
     resetPreview()
@@ -274,12 +525,6 @@ const disableEncodeButton = () => {
   }
 }
 
-const escapeHtml = (text) => {
-  const div = document.createElement('div')
-  div.textContent = text
-  return div.innerHTML
-}
-
 const renderSummary = (serialized) => {
   const pageCount = Number.isFinite(serialized.pageCount)
     ? serialized.pageCount
@@ -297,6 +542,9 @@ const renderSummary = (serialized) => {
 const handleLoadSample = async () => {
   setStatus('Loading sample...')
   setError('')
+  renderDiagnosticsPlaceholder(
+    'Loading a sample clears the previous encode diagnostics.'
+  )
   resetPreview()
   setPreviewNote('Original PDF preview will appear here.')
   resetDecodeContext({
@@ -334,6 +582,9 @@ const handleFileSelect = (event) => {
   }
 
   setError('')
+  renderDiagnosticsPlaceholder(
+    'Selecting a file clears the previous encode diagnostics.'
+  )
   resetPreview()
   setPreviewNote('Original PDF preview will appear here.')
   resetDecodeContext({
@@ -379,8 +630,27 @@ const handleEncode = async () => {
 
   setStatus('Encoding...')
   setError('')
-  jsonRenderer.renderMessage('Working...')
+  renderDiagnosticsPlaceholder('Collecting encode diagnostics...')
+  setJsonOutputMessage('Working...')
   setPreviewNote('Showing the original PDF while encode is running.')
+
+  const encodeStartedAt = getNow()
+  const encodeDiagnostics = {
+    fileName: currentFile.name,
+    fileSize: currentFile.size,
+    milestones: {
+      encodeStartedAt: roundMs(encodeStartedAt),
+      encodeCompleteAt: null,
+      serializerCreatedAt: null,
+      shellRenderedAt: null,
+      serializerResolvedAt: null,
+      readyAt: null
+    },
+    pageDiagnostics: [],
+    coverDiagnostic: null,
+    totals: null,
+    failure: null
+  }
 
   try {
     const arrayBuffer = await currentFile.arrayBuffer()
@@ -403,6 +673,7 @@ const handleEncode = async () => {
       }
 
       if (event?.stage === 'encode:complete') {
+        encodeDiagnostics.milestones.encodeCompleteAt = roundMs(getNow())
         setPreviewNote('Finalizing the restored PDF preview...')
       }
     })
@@ -415,8 +686,48 @@ const handleEncode = async () => {
       throw new Error('Encode returned empty result.')
     }
 
-    const serializer = createProgressiveSerializer(intermediate)
-    jsonRenderer.renderData(serializer.shell)
+    encodeDiagnostics.milestones.serializerCreatedAt = roundMs(getNow())
+    const serializer = createProgressiveSerializer(intermediate, {
+      onDiagnostic: (event) => {
+        if (event.type === 'cover') {
+          encodeDiagnostics.coverDiagnostic = {
+            available: event.available,
+            durationMs: roundMs(event.durationMs),
+            skipped: event.skipped
+          }
+          return
+        }
+
+        if (event.type === 'page') {
+          encodeDiagnostics.pageDiagnostics.push({
+            pageNumber: event.pageNumber,
+            totalDurationMs: roundMs(event.totalDurationMs),
+            resolvePageMs: roundMs(event.resolvePageMs),
+            resolveTextsMs: roundMs(event.resolveTextsMs),
+            buildSummaryMs: roundMs(event.buildSummaryMs),
+            textCount: event.textCount,
+            missing: event.missing
+          })
+          return
+        }
+
+        encodeDiagnostics.pageDiagnostics.push({
+          pageNumber: event.pageNumber,
+          totalDurationMs: roundMs(event.totalDurationMs),
+          error: event.error
+        })
+      },
+      onProgress: (event) => {
+        if (encodeContextId !== activeDecodeContextId) {
+          return
+        }
+
+        setStatus(formatSerializerProgressText(event))
+        setPreviewNote(formatSerializerPreviewNote(event))
+      }
+    })
+    renderJsonOutputData(serializer.shell)
+    encodeDiagnostics.milestones.shellRenderedAt = roundMs(getNow())
     renderSummary(serializer.shell)
 
     serializer.onUpdate((snapshot) => {
@@ -424,20 +735,51 @@ const handleEncode = async () => {
         return
       }
 
-      jsonRenderer.updateData(snapshot)
+      updateJsonOutputData(snapshot)
       renderSummary(snapshot)
     })
 
     const finalSnapshot = await serializer.resolve()
+    encodeDiagnostics.milestones.serializerResolvedAt = roundMs(getNow())
 
     if (encodeContextId !== activeDecodeContextId) {
       return
     }
 
-    jsonRenderer.updateData(finalSnapshot)
+    updateJsonOutputData(finalSnapshot)
     renderSummary(finalSnapshot)
     activateDecodeContext(intermediate)
 
+    encodeDiagnostics.milestones.readyAt = roundMs(getNow())
+    encodeDiagnostics.totals = {
+      encodeToCompleteMs:
+        encodeDiagnostics.milestones.encodeCompleteAt === null
+          ? null
+          : roundMs(
+              encodeDiagnostics.milestones.encodeCompleteAt -
+                encodeDiagnostics.milestones.encodeStartedAt
+            ),
+      completeToReadyMs:
+        encodeDiagnostics.milestones.encodeCompleteAt === null
+          ? null
+          : roundMs(
+              encodeDiagnostics.milestones.readyAt -
+                encodeDiagnostics.milestones.encodeCompleteAt
+            ),
+      serializerResolveMs:
+        encodeDiagnostics.milestones.serializerCreatedAt === null
+          ? null
+          : roundMs(
+              encodeDiagnostics.milestones.serializerResolvedAt -
+                encodeDiagnostics.milestones.serializerCreatedAt
+            ),
+      totalEncodeFlowMs: roundMs(
+        encodeDiagnostics.milestones.readyAt -
+          encodeDiagnostics.milestones.encodeStartedAt
+      )
+    }
+    publishEncodeDiagnostics(encodeDiagnostics)
+    renderEncodeDiagnostics(encodeDiagnostics)
     setStatus('Encode ready')
   } catch (error) {
     if (encodeContextId !== activeDecodeContextId) {
@@ -445,7 +787,11 @@ const handleEncode = async () => {
     }
 
     const message = error instanceof Error ? error.message : String(error)
-    jsonRenderer.renderMessage(message)
+    setJsonOutputMessage(message)
+    encodeDiagnostics.failure = message
+    encodeDiagnostics.milestones.readyAt = roundMs(getNow())
+    publishEncodeDiagnostics(encodeDiagnostics)
+    renderEncodeDiagnostics(encodeDiagnostics)
     setStatus('Encode failed')
     setError('Encoding failed. See JSON output for details.')
     setPreviewNote(
@@ -587,6 +933,17 @@ const handleDecode = async () => {
 }
 
 resetDecodeContext()
+renderDiagnosticsPlaceholder(
+  'Run Encode to inspect where complete-to-ready time is spent.'
+)
+syncJsonOutputVisibility()
+
+if (jsonOutputToggle) {
+  jsonOutputToggle.addEventListener('change', () => {
+    syncJsonOutputVisibility()
+    renderLatestJsonOutput()
+  })
+}
 
 window.addEventListener('pagehide', () => {
   revokePagePreviewUrl()

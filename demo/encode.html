@@ -57,6 +57,10 @@
         <div class="actions">
           <button type="button" id="encode-button" disabled>Encode PDF</button>
           <button type="button" id="decode-button" disabled>Decode</button>
+          <label class="checkbox-option" for="json-output-toggle">
+            <input type="checkbox" id="json-output-toggle" checked />
+            <span>JSON Output</span>
+          </label>
         </div>
       </section>
 
@@ -69,7 +73,16 @@
         </div>
       </section>
 
-      <section class="card">
+      <section class="card" data-role="diagnostics">
+        <h3>Encode Diagnostics</h3>
+        <div class="diagnostics-content">
+          <p class="diagnostics-placeholder">
+            Run Encode to inspect where complete-to-ready time is spent.
+          </p>
+        </div>
+      </section>
+
+      <section class="card" data-role="json-output-card">
         <h3>JSON Output</h3>
         <div class="output" data-role="output">Click "Load Sample PDF" or upload a PDF file, then click "Encode PDF".</div>
       </section>

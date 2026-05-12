@@ -16,16 +16,45 @@ function buildPageSummary(page, texts) {
   }
 }
 
-async function resolveCoverAvailable(intermediate) {
+function getNow() {
+  if (
+    typeof performance !== 'undefined' &&
+    typeof performance.now === 'function'
+  ) {
+    return performance.now()
+  }
+
+  return Date.now()
+}
+
+async function resolveCoverAvailable(intermediate, onDiagnostic) {
+  const startedAt = getNow()
+
   if (typeof intermediate.getCover !== 'function') {
+    onDiagnostic?.({
+      type: 'cover',
+      available: false,
+      durationMs: getNow() - startedAt,
+      skipped: true
+    })
     return false
   }
 
   const cover = await intermediate.getCover(0.25).catch(() => undefined)
-  return typeof cover === 'string' && cover.length > 0
+  const available = typeof cover === 'string' && cover.length > 0
+
+  onDiagnostic?.({
+    type: 'cover',
+    available,
+    durationMs: getNow() - startedAt,
+    skipped: false
+  })
+
+  return available
 }
 
-export function createProgressiveSerializer(intermediate) {
+export function createProgressiveSerializer(intermediate, options = {}) {
+  const { onDiagnostic, onProgress } = options
   const outline =
     typeof intermediate.getOutline === 'function'
       ? (intermediate.getOutline() ?? [])
@@ -56,14 +85,42 @@ export function createProgressiveSerializer(intermediate) {
     pages: placeholderPages
   }
 
-  const coverAvailablePromise = resolveCoverAvailable(intermediate)
-  coverAvailablePromise.then((available) => {
-    shell.coverAvailable = available
-  })
-
   const pageSummaryCache = new Array(pageCount).fill(undefined)
   const subscribers = []
   let resolutionError = null
+  const totalProgressUnits = pageCount + 1
+  let completedProgressUnits = 0
+
+  function emitProgress(stage, extra = {}) {
+    onProgress?.({
+      stage,
+      current: completedProgressUnits,
+      total: totalProgressUnits,
+      ...extra
+    })
+  }
+
+  function advanceProgress(stage, extra = {}) {
+    completedProgressUnits = Math.min(
+      totalProgressUnits,
+      completedProgressUnits + 1
+    )
+    emitProgress(stage, extra)
+  }
+
+  emitProgress('serialize:start', { pageCount })
+
+  const coverAvailablePromise = resolveCoverAvailable(
+    intermediate,
+    onDiagnostic
+  )
+  coverAvailablePromise.then((available) => {
+    shell.coverAvailable = available
+    advanceProgress('serialize:cover', {
+      available,
+      pageCount
+    })
+  })
 
   function notifySubscribers() {
     const snapshot = buildFullSnapshot()
@@ -89,8 +146,11 @@ export function createProgressiveSerializer(intermediate) {
   ;(async () => {
     for (let i = 0; i < pageNumbers.length; i++) {
       const num = pageNumbers[i]
+      const pageStartedAt = getNow()
       try {
+        const pageResolvedStartedAt = getNow()
         const page = await intermediate.getPageByPageNumber(num)
+        const pageResolvedAt = getNow()
         if (page === undefined) {
           pageSummaryCache[i] = {
             number: num,
@@ -99,19 +159,60 @@ export function createProgressiveSerializer(intermediate) {
             textCount: 0,
             previewText: []
           }
+          onDiagnostic?.({
+            type: 'page',
+            pageNumber: num,
+            totalDurationMs: getNow() - pageStartedAt,
+            resolvePageMs: pageResolvedAt - pageResolvedStartedAt,
+            resolveTextsMs: 0,
+            buildSummaryMs: 0,
+            textCount: 0,
+            missing: true
+          })
+          advanceProgress('serialize:page', {
+            pageNumber: num,
+            pagesCompleted: i + 1,
+            pageCount
+          })
+          notifySubscribers()
           continue
         }
         let texts = []
+        const textsStartedAt = getNow()
         if (Array.isArray(page.texts)) {
           texts = page.texts
         } else if (typeof page.getTexts === 'function') {
           texts = await page.getTexts()
         }
+        const textsResolvedAt = getNow()
+        const summaryStartedAt = getNow()
         const summary = buildPageSummary(page, texts)
+        const summaryBuiltAt = getNow()
         pageSummaryCache[i] = summary
+        onDiagnostic?.({
+          type: 'page',
+          pageNumber: num,
+          totalDurationMs: summaryBuiltAt - pageStartedAt,
+          resolvePageMs: pageResolvedAt - pageResolvedStartedAt,
+          resolveTextsMs: textsResolvedAt - textsStartedAt,
+          buildSummaryMs: summaryBuiltAt - summaryStartedAt,
+          textCount: texts.length,
+          missing: false
+        })
+        advanceProgress('serialize:page', {
+          pageNumber: num,
+          pagesCompleted: i + 1,
+          pageCount
+        })
         notifySubscribers()
       } catch (err) {
         resolutionError = err
+        onDiagnostic?.({
+          type: 'page-error',
+          pageNumber: num,
+          totalDurationMs: getNow() - pageStartedAt,
+          error: err instanceof Error ? err.message : String(err)
+        })
         notifySubscribers()
         break
       }
@@ -140,6 +241,7 @@ export function createProgressiveSerializer(intermediate) {
           await new Promise((r) => setTimeout(r, 5))
         }
         await coverAvailablePromise
+        emitProgress('serialize:complete', { pageCount })
         return buildFullSnapshot()
       })()
     }

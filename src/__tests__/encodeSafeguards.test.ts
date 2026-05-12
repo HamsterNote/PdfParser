@@ -25,7 +25,7 @@ describe('PdfParser encode safeguards', () => {
     const options = resolveEncodeOptions({}, 350)
 
     expect(options.maxPages).toBe(350)
-    expect(options.pageLoadTimeoutMs).toBe(5000)
+    expect(options.pageLoadTimeoutMs).toBe(30000)
   })
 
   it('limits page info scan by maxPages', async () => {
@@ -34,6 +34,10 @@ describe('PdfParser encode safeguards', () => {
         getViewport: () => ({
           width: 100 + pageNumber,
           height: 200 + pageNumber
+        }),
+        getTextContent: async () => ({
+          items: [],
+          styles: Object.create(null)
         }),
         cleanup: jest.fn()
       } as unknown as PDFPageProxy
@@ -99,7 +103,12 @@ describe('PdfParser encode safeguards', () => {
     ).rejects.toThrow('Timed out while loading page 1 during PDF encode')
   })
 
-  it('throws when text extraction exceeds timeout in lazy getData', async () => {
+  it('throws when text extraction exceeds timeout before encode completes', async () => {
+    const events: Array<{
+      stage: 'encode:start' | 'encode:page' | 'encode:complete'
+      current: number
+      total: number
+    }> = []
     const page = {
       getViewport: () => ({ width: 100, height: 200 }),
       getTextContent: () => new Promise<never>(() => undefined),
@@ -117,7 +126,8 @@ describe('PdfParser encode safeguards', () => {
         buildPageInfoList: (
           pdf: PDFDocumentProxy,
           pdfId: string,
-          options: { maxPages: number; pageLoadTimeoutMs: number }
+          options: { maxPages: number; pageLoadTimeoutMs: number },
+          onProgress?: (event: (typeof events)[number]) => void
         ) => Promise<
           Array<{
             getData: () => Promise<unknown>
@@ -126,14 +136,23 @@ describe('PdfParser encode safeguards', () => {
       }
     ).buildPageInfoList.bind(PdfParser)
 
-    const pages = await buildPageInfoList(pdf, 'pdf-id', {
-      maxPages: 1,
-      pageLoadTimeoutMs: 10
-    })
-
-    await expect(pages[0].getData()).rejects.toThrow(
+    await expect(
+      buildPageInfoList(
+        pdf,
+        'pdf-id',
+        {
+          maxPages: 1,
+          pageLoadTimeoutMs: 10
+        },
+        (event) => {
+          events.push(event)
+        }
+      )
+    ).rejects.toThrow(
       'Timed out while extracting text from page 1 during PDF encode'
     )
+
+    expect(events).toHaveLength(0)
   })
 
   describe('PdfParser.encode signature compatibility', () => {
