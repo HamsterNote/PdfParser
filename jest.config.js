@@ -5,6 +5,7 @@ export default {
   moduleNameMapper: {
     '^@PdfParser$': '<rootDir>/src/index.ts',
     '^@PdfParser/node$': '<rootDir>/src/node.ts',
+    '^[.][.]/(?:[.][.]/)?dist/browser[.]js$': '<rootDir>/src/browser.ts',
     '^@hamster-note/document-parser$':
       '<rootDir>/src/__mocks__/@hamster-note/document-parser.ts',
     '^@hamster-note/types$': '<rootDir>/src/__mocks__/@hamster-note/types.ts',
