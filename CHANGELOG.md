@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [UnReleased]
+## [0.6.0] - 2026-05-13
 
 ### Added
 - 新增 `verify:roundtrip` 与 `verify:package` 脚本，基于真实 PDF fixture 校验 encode → decode → encode 的回归效果并输出报告
