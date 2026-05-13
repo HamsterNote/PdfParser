@@ -1,0 +1,7 @@
+schema: spec-driven
+created: "2026-05-02"
+source: .sisyphus migration
+migrated_from:
+  - .sisyphus/plans/encode-progress.md
+  - .sisyphus/boulder.json
+  - .sisyphus/notepads/encode-progress/learnings.md

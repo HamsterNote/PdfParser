@@ -1,0 +1,71 @@
+
+> @hamster-note/pdf-parser@0.5.1 test
+> NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.js --runTestsByPath src/__tests__/pdfParserIntegration.test.ts
+
+(node:2211462) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+  console.warn
+    Warning: UnknownErrorException: Unable to load font data at: file:///home/zhangxiao/frontend/worktrees/PdfParser/feature-add-some-params/node_modules/pdfjs-dist/standard_fonts/LiberationSans-Regular.ttf
+
+      at warn (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:25:54523)
+      at PartialEvaluator.fetchStandardFontData (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:28:520406)
+      at PartialEvaluator.translateFont (node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs:28:566341)
+
+PASS src/__tests__/pdfParserIntegration.test.ts (13.139 s)
+  PdfParser Integration Tests - test_github.pdf
+    PDF 文件加载
+      ✓ 应该成功加载 test_github.pdf 文件 (2 ms)
+    PDF 解析结果
+      ✓ 应该成功解析 PDF 并返回 IntermediateDocument
+      ✓ 应该包含有效的文档 ID (1 ms)
+      ✓ 应该包含文档标题
+    页面结构验证
+      ✓ 应该包含正确的页数 (4 页)
+      ✓ 每页都应该有有效的 ID (477 ms)
+      ✓ 每页都应该有合理的尺寸 (1 ms)
+    文本内容提取验证
+      ✓ 应该能获取第一页的数据
+      ✓ 第一页应该包含用户名 "Z.X" 或 "wszxdhr"
+      ✓ 第一页应该包含邮箱 "job@z-x.vip"
+      ✓ 应该包含 "followers" 和 "following" 统计信息 (1 ms)
+      ✓ 应该包含 "Repositories" 信息
+    文本属性验证
+      ✓ 文本元素应该有有效的 ID (1 ms)
+      ✓ 文本元素应该有 polygon 位置信息 (1 ms)
+      ✓ 文本元素应该通过 polygon 保留尺寸信息 (1 ms)
+      ✓ 文本元素应该有字体大小信息
+    多页解析验证
+      ✓ 应该能解析所有 4 页的数据 (1 ms)
+      ✓ 第二页应该包含活动统计信息
+      ✓ 第三页应该包含贡献日历或项目信息 (1 ms)
+    边界情况处理
+      ✓ 获取不存在的页面应该返回 undefined
+      ✓ 获取页码为 0 的页面应该返回 undefined
+      ✓ 获取负数页码的页面应该返回 undefined (1 ms)
+    decode 二进制恢复
+      ✓ 应该返回可重建 PDF 的 ArrayBuffer (167 ms)
+      ✓ 对符合新版文本契约的结构化中间文档应该返回 ArrayBuffer (2 ms)
+      ✓ 应把 `IntermediatePage.getThumbnail()` 返回的背景写入生成的 PDF (4 ms)
+      ✓ 新版类型序列化往返后仍应可 decode (1 ms)
+      ✓ 配置中文字体后 decode 应保留中文文本 (2195 ms)
+      ✓ 配置中文字体后 decode 应保留中英混排文本 (2034 ms)
+      ✓ 配置中文字体后 decode 应保留“个人主页”文本 (2204 ms)
+      ✓ 对缺少可用页面内容的文档应该返回 undefined (1 ms)
+      ✓ 对缺少渲染关键字段的新版文档应该返回 undefined
+      ✓ 多次 decode 的结果应该互不污染 (216 ms)
+      ✓ 默认单参数 decode(doc) 应返回 ArrayBuffer (2 ms)
+      ✓ decode(doc, {}, reporter) 应触发 progress 事件 (2 ms)
+      ✓ 无效输入不应触发 decode:complete 事件 (1 ms)
+      ✓ per-call options.fonts 应替换静态字体配置 (1678 ms)
+      ✓ 两次 decode 调用使用不同 per-call fonts 不应互相泄漏 (3300 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       37 passed, 37 total
+Snapshots:   0 total
+Time:        13.347 s, estimated 15 s
+Ran all test suites within paths "src/__tests__/pdfParserIntegration.test.ts".
+--- LINT ---
+
+> @hamster-note/pdf-parser@0.5.1 lint
+> eslint .
+

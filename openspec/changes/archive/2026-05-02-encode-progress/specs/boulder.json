@@ -1,0 +1,50 @@
+{
+  "active_plan": "/home/zhangxiao/frontend/worktrees/PdfParser/feature-add-some-params/.sisyphus/plans/encode-progress.md",
+  "started_at": "2026-05-02T02:37:55.046Z",
+  "session_ids": [
+    "ses_21973483cffe3d3IbE9E7Q1OLb"
+  ],
+  "session_origins": {
+    "ses_21973483cffe3d3IbE9E7Q1OLb": "direct"
+  },
+  "plan_name": "encode-progress",
+  "agent": "atlas",
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Define encode progress API contract",
+      "session_id": "ses_2196fa2e5ffeV4dSsxRX9SVEEN",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-02T02:42:11.170Z"
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "Add encode contract regression tests",
+      "session_id": "ses_2196af2a2ffejZ9PqxqZ05yQuQ",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-02T02:56:12.315Z"
+    },
+    "todo:6": {
+      "task_key": "todo:6",
+      "task_label": "6",
+      "task_title": "Extend integration coverage for encode progress behavior",
+      "session_id": "ses_219616b0fffegciYjxEANC7N85",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-02T02:59:25.561Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "Plan Compliance Audit — oracle",
+      "session_id": "ses_2195ae4aeffeUZvLKS58uDCDEh",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-05-02T03:05:24.983Z"
+    }
+  }
+}

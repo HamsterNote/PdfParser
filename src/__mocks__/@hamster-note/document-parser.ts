@@ -1,6 +1,8 @@
 // Mock for @hamster-note/document-parser
 import type { IntermediateDocument } from './types'
 
+import type { DecodeOptions, DecodeProgressReporter } from '../../pdfParser'
+
 export type ParserInput = ArrayBuffer | ArrayBufferView | Blob
 
 export interface DocumentAnchorWithTextId {
@@ -28,7 +30,11 @@ export abstract class DocumentParser {
   /**
    * 可选：从中间文档逆序列化回原始文件数据。
    */
-  decode(_intermediateDocument: IntermediateDocument): Promise<ParserInput> {
+  decode(
+    _intermediateDocument: IntermediateDocument,
+    _options?: DecodeOptions,
+    _onProgress?: DecodeProgressReporter
+  ): Promise<ParserInput> {
     return Promise.resolve(new ArrayBuffer(0))
   }
 

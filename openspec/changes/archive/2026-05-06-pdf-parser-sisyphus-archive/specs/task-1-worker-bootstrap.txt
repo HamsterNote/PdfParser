@@ -1,0 +1,18 @@
+
+> @hamster-note/pdf-parser@0.3.0 test
+> NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.js --runInBand src/__tests__/pdfjsWorkerInitialization.test.ts
+
+(node:31113) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/__tests__/pdfjsWorkerInitialization.test.ts
+  ensurePdfjsWorkerConfigured
+    ✓ returns browser worker path in browser environment (27 ms)
+    ✓ returns Node legacy worker path in Node environment (17 ms)
+    ✓ preserves preconfigured workerSrc (16 ms)
+    ✓ is idempotent on multiple calls (18 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       4 passed, 4 total
+Snapshots:   0 total
+Time:        0.774 s, estimated 1 s
+Ran all test suites matching src/__tests__/pdfjsWorkerInitialization.test.ts.

@@ -1,0 +1,155 @@
+# f3 manual QA
+- generatedAt: 2026-03-30T00:00:00Z
+- cwd: /Users/zhangxiao/frontend/HamsterNote/PdfParser
+- result: PASS
+
+## npm test
+```text
+
+> @hamster-note/pdf-parser@0.3.0 test
+> NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.js
+
+(node:45905) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/__tests__/demoJsonView.test.ts
+(node:45901) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:45900) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:45906) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/__tests__/generateMockData.test.ts
+(node:45904) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/__tests__/transformToViewport.test.ts
+(node:45902) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/__tests__/outline-mapping.test.ts
+(node:45903) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/__tests__/factories.test.ts
+PASS src/__tests__/pdfParserDemoContract.test.ts
+PASS src/__tests__/pdfParserWorkerOverride.test.ts
+PASS src/__tests__/seededRandom.test.ts
+PASS src/__tests__/runGeneration.test.ts
+PASS src/__tests__/pdfjsWorkerInitialization.test.ts
+PASS src/__tests__/mapTextContentToIntermediate.test.ts
+PASS src/__tests__/mapTextDir.test.ts
+PASS src/__tests__/outputWriter.test.ts
+PASS src/__tests__/validateRuleSet.test.ts
+PASS src/__tests__/collectMetrics.test.ts
+PASS src/__tests__/scenarioFilter.test.ts
+PASS src/__tests__/asTextItem.test.ts
+PASS src/__tests__/generateTestCases.test.ts
+PASS src/__tests__/pdfParserIntegration.test.ts
+
+Test Suites: 19 passed, 19 total
+Tests:       187 passed, 187 total
+Snapshots:   0 total
+Time:        3.525 s
+Ran all test suites.
+```
+
+## npm run lint
+```text
+
+> @hamster-note/pdf-parser@0.3.0 lint
+> eslint .
+```
+
+## npm run build:all
+```text
+
+> @hamster-note/pdf-parser@0.3.0 build:all
+> rolldown --config rolldown.config.ts && node ./scripts/copyPdfjsWorker.mjs
+
+<DIR>/cli/generate.js.map            asset │ size:  4.21 kB
+<DIR>/index.js.map                   asset │ size:  5.71 kB
+<DIR>/runGeneration-DgGqm3Lk.js.map  asset │ size: 31.42 kB
+<DIR>/pdfParser-AyG4LMc9.js.map      asset │ size: 54.54 kB
+<DIR>/browser.js                     chunk │ size:  0.08 kB
+<DIR>/cli/generate.js                chunk │ size:  2.32 kB
+<DIR>/index.js                       chunk │ size:  3.65 kB
+<DIR>/runGeneration-DgGqm3Lk.js      chunk │ size: 15.38 kB
+<DIR>/pdfParser-AyG4LMc9.js          chunk │ size: 25.25 kB
+
+✔ rolldown v1.0.0-beta.58 Finished in 12.68 ms
+Copied: node_modules/pdfjs-dist/build/pdf.worker.min.mjs -> dist/pdf.worker.min.mjs
+
+[Category+Skill Reminder]
+
+**Built-in**: playwright, frontend-ui-ux, git-master, dev-browser
+**⚡ YOUR SKILLS (PRIORITY)**: pre-publish-review, github-triage, work-with-pr, work-with-pr-workspace/iteration-1/benchmark
+
+> User-installed skills OVERRIDE built-in defaults. ALWAYS prefer YOUR SKILLS when domain matches.
+
+```typescript
+task(category="visual-engineering", load_skills=["pre-publish-review"], run_in_background=true)
+```
+```
+
+## ls dist/pdf.worker.min.mjs
+```text
+dist/pdf.worker.min.mjs
+```
+
+## npm pack --dry-run
+```text
+npm notice
+npm notice 📦  @hamster-note/pdf-parser@0.3.0
+npm notice Tarball Contents
+npm notice 1.1kB LICENSE
+npm notice 80B dist/browser.js
+npm notice 2.3kB dist/cli/generate.js
+npm notice 4.2kB dist/cli/generate.js.map
+npm notice 42.3kB dist/index_DiskStation_Mar-18-0728-2026_DownloadConflict.js
+npm notice 1.1kB dist/index.d.ts
+npm notice 744B dist/index.d.ts.map
+npm notice 3.6kB dist/index.js
+npm notice 5.7kB dist/index.js.map
+npm notice 1.1MB dist/pdf.worker.min.mjs
+npm notice 25.2kB dist/pdfParser-AyG4LMc9.js
+npm notice 54.5kB dist/pdfParser-AyG4LMc9.js.map
+npm notice 24.1kB dist/pdfParser-B29p3u98.js
+npm notice 52.6kB dist/pdfParser-B29p3u98.js.map
+npm notice 25.3kB dist/pdfParser-BZaoIE3X.js
+npm notice 54.8kB dist/pdfParser-BZaoIE3X.js.map
+npm notice 24.1kB dist/pdfParser-CnYh_9FS.js
+npm notice 52.6kB dist/pdfParser-CnYh_9FS.js.map
+npm notice 24.1kB dist/pdfParser-CQm3cOTU.js
+npm notice 52.6kB dist/pdfParser-CQm3cOTU.js.map
+npm notice 25.2kB dist/pdfParser-D16KIhag.js
+npm notice 54.4kB dist/pdfParser-D16KIhag.js.map
+npm notice 25.3kB dist/pdfParser-Doz_cwF3.js
+npm notice 54.5kB dist/pdfParser-Doz_cwF3.js.map
+npm notice 15.4kB dist/runGeneration-DgGqm3Lk.js
+npm notice 31.4kB dist/runGeneration-DgGqm3Lk.js.map
+npm notice 15.4kB dist/runGeneration-DGKSMOfq.js
+npm notice 31.4kB dist/runGeneration-DGKSMOfq.js.map
+npm notice 2.0kB package.json
+npm notice Tarball Details
+npm notice name: @hamster-note/pdf-parser
+npm notice version: 0.3.0
+npm notice filename: hamster-note-pdf-parser-0.3.0.tgz
+npm notice package size: 432.3 kB
+npm notice unpacked size: 1.8 MB
+npm notice shasum: c30f6ee7dcb72e7e904159301dd569dd59f332da
+npm notice integrity: sha512-ULrMcRX55TMgT[...]rktQzf8/Z+r2Q==
+npm notice total files: 29
+npm notice
+hamster-note-pdf-parser-0.3.0.tgz
+```
+
+## Node ESM smoke
+```text
+Warning: Please use the `legacy` build in Node.js environments.
+SUCCESS: workerSrc auto-filled to: file:///Users/zhangxiao/frontend/HamsterNote/PdfParser/node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs
+```
+
+## summary
+- npm test: PASS
+- npm run lint: PASS
+- npm run build:all: PASS
+- dist/pdf.worker.min.mjs: PRESENT
+- npm pack --dry-run includes dist/pdf.worker.min.mjs: PASS
+- Node ESM smoke: PASS (scripts/smoke-test.mjs)

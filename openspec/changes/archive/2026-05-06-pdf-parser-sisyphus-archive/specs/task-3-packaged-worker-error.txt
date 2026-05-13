@@ -1,0 +1,37 @@
+npm notice
+npm notice 📦  @hamster-note/pdf-parser@0.3.0
+npm notice Tarball Contents
+npm notice 1.1kB LICENSE
+npm notice 80B dist/browser.js
+npm notice 2.3kB dist/cli/generate.js
+npm notice 4.2kB dist/cli/generate.js.map
+npm notice 42.3kB dist/index_DiskStation_Mar-18-0728-2026_DownloadConflict.js
+npm notice 1.1kB dist/index.d.ts
+npm notice 744B dist/index.d.ts.map
+npm notice 3.6kB dist/index.js
+npm notice 5.7kB dist/index.js.map
+npm notice 1.1MB dist/pdf.worker.min.mjs
+npm notice 24.1kB dist/pdfParser-B29p3u98.js
+npm notice 52.6kB dist/pdfParser-B29p3u98.js.map
+npm notice 25.3kB dist/pdfParser-BZaoIE3X.js
+npm notice 54.8kB dist/pdfParser-BZaoIE3X.js.map
+npm notice 24.1kB dist/pdfParser-CnYh_9FS.js
+npm notice 52.6kB dist/pdfParser-CnYh_9FS.js.map
+npm notice 24.1kB dist/pdfParser-CQm3cOTU.js
+npm notice 52.6kB dist/pdfParser-CQm3cOTU.js.map
+npm notice 15.4kB dist/runGeneration-DgGqm3Lk.js
+npm notice 31.4kB dist/runGeneration-DgGqm3Lk.js.map
+npm notice 15.4kB dist/runGeneration-DGKSMOfq.js
+npm notice 31.4kB dist/runGeneration-DGKSMOfq.js.map
+npm notice 2.0kB package.json
+npm notice Tarball Details
+npm notice name: @hamster-note/pdf-parser
+npm notice version: 0.3.0
+npm notice filename: hamster-note-pdf-parser-0.3.0.tgz
+npm notice package size: 387.0 kB
+npm notice unpacked size: 1.5 MB
+npm notice shasum: b5e25105c8db439ebe3fd2b0a585408ba66bf03f
+npm notice integrity: sha512-TVdzD6G+jiDul[...]nMihcNdRXPXmg==
+npm notice total files: 23
+npm notice
+hamster-note-pdf-parser-0.3.0.tgz

@@ -1,0 +1,11 @@
+Task 1 Evidence
+
+Progressive serializer tests passed:
+- shell is available immediately before any page text resolution
+- final resolved JSON is deep-equal to serializeIntermediate output
+- onUpdate callbacks fire in ascending page order as pages resolve
+- does not use Promise.all for page text resolution
+- re-accessing resolved pages does not re-call getTexts
+
+Integration tests passed: 40/40
+

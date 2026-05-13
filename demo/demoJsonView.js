@@ -9,6 +9,9 @@ export function createJsonOutputRenderer(
   jsonviewApi = jsonview
 ) {
   let currentTree = null
+  let pendingData = null
+  let scheduled = false
+  let rafId = null
 
   function destroyCurrentTree() {
     if (!currentTree) {
@@ -34,10 +37,42 @@ export function createJsonOutputRenderer(
     currentTree = tree
   }
 
+  function updateData(data) {
+    pendingData = data
+    if (scheduled) {
+      return
+    }
+    scheduled = true
+    const schedule =
+      typeof requestAnimationFrame === 'function'
+        ? requestAnimationFrame
+        : (cb) => setTimeout(cb, 0)
+    rafId = schedule(() => {
+      scheduled = false
+      rafId = null
+      if (pendingData !== null) {
+        const dataToRender = pendingData
+        pendingData = null
+        renderData(dataToRender)
+      }
+    })
+  }
+
   function renderMessage(message) {
     if (!outputElement) {
       return
     }
+
+    if (rafId !== null) {
+      const cancel =
+        typeof cancelAnimationFrame === 'function'
+          ? cancelAnimationFrame
+          : clearTimeout
+      cancel(rafId)
+      rafId = null
+    }
+    scheduled = false
+    pendingData = null
 
     destroyCurrentTree()
     clearContainer(outputElement)
@@ -45,6 +80,17 @@ export function createJsonOutputRenderer(
   }
 
   function dispose() {
+    if (rafId !== null) {
+      const cancel =
+        typeof cancelAnimationFrame === 'function'
+          ? cancelAnimationFrame
+          : clearTimeout
+      cancel(rafId)
+      rafId = null
+    }
+    scheduled = false
+    pendingData = null
+
     destroyCurrentTree()
 
     if (!outputElement) {
@@ -56,6 +102,7 @@ export function createJsonOutputRenderer(
 
   return {
     renderData,
+    updateData,
     renderMessage,
     dispose
   }

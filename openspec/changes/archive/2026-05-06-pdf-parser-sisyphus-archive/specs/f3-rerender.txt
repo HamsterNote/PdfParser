@@ -1,0 +1,7 @@
+Scenario 3: Rerender Path
+URL: http://127.0.0.1:5577/demo/encode.html
+Result: PASS
+Status after second encode: Encode ready
+Viewer root count in [data-role="output"]: 1
+Element child count in [data-role="output"]: 1
+Conclusion: repeated encode does not stack multiple viewer roots.

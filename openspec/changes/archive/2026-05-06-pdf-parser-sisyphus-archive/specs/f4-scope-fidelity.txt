@@ -1,0 +1,23 @@
+# F4 Scope Fidelity Verification
+
+## Status: PASS
+
+## Verified Files (git diff --name-only origin/main...HEAD):
+1. package.json - modified (build:all script)
+2. scripts/copyPdfjsWorker.mjs - new
+3. scripts/smoke-test.mjs - new
+4. src/__tests__/pdfParserWorkerOverride.test.ts - new
+5. src/__tests__/pdfjsWorkerInitialization.test.ts - new
+6. src/pdfParser.ts - new (moved from index.ts with worker init)
+7. src/pdfjsWorker.ts - new
+
+## Verification Commands:
+- git diff --name-only origin/main...HEAD: Shows exactly 7 files
+- npm run lint: PASS (0 errors)
+
+## Notes:
+- All demo-related files removed (demo/, browser.ts, demoJsonView.test.ts, pdfParserDemoContract.test.ts)
+- All .opencode and .specify templates restored to origin/main
+- CHANGELOG.md, .gitignore, yarn.lock, rolldown.config.ts, src/index.ts, src/__mocks__/@hamster-note/types.ts restored to origin/main
+
+## Date: 2026-03-30

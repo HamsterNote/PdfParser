@@ -68,8 +68,21 @@ header h1 {
 .actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.checkbox-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #374151;
+  font-size: 14px;
+}
+
+.checkbox-option input {
+  margin: 0;
 }
 
 button {
@@ -175,6 +188,41 @@ input[type='file'] {
   color: #9ca3af;
   font-size: 13px;
   margin: 0;
+}
+
+.diagnostics-content {
+  font-size: 13px;
+  color: #374151;
+}
+
+.diagnostics-placeholder {
+  color: #9ca3af;
+  font-size: 13px;
+  margin: 0;
+}
+
+.diagnostics-content p {
+  margin: 4px 0;
+}
+
+.diagnostics-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.diagnostics-list li {
+  margin: 4px 0;
+}
+
+.diagnostics-content code {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+  font-size: 12px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 1px 4px;
 }
 
 .preview {

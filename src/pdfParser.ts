@@ -1,12 +1,4 @@
 import { DocumentParser, type ParserInput } from '@hamster-note/document-parser'
-import type {
-  IntermediateOutlineDest,
-  IntermediateOutlineDestPage,
-  IntermediateOutlineDestPosition,
-  IntermediateOutlineDestUrl,
-  IntermediateTextPolygon,
-  Number2
-} from '@hamster-note/types'
 import {
   IntermediateDocument,
   IntermediateOutline,
@@ -16,16 +8,25 @@ import {
   IntermediateText,
   TextDir
 } from '@hamster-note/types'
+import type {
+  IntermediateOutlineDest,
+  IntermediateOutlineDestPage,
+  IntermediateOutlineDestPosition,
+  IntermediateOutlineDestUrl,
+  IntermediateTextPolygon,
+  Number2
+} from '@hamster-note/types'
 import fontkit from '@pdf-lib/fontkit'
 import { PDFDocument, StandardFonts, type PDFFont, type PDFPage } from 'pdf-lib'
-import type { PageViewport } from 'pdfjs-dist/types/src/display/display_utils'
 import type {
+  PDFDocumentLoadingTask,
   PDFDocumentProxy,
   PDFPageProxy,
   TextContent,
   TextItem,
   TextStyle
 } from 'pdfjs-dist/types/src/display/api'
+import type { PageViewport } from 'pdfjs-dist/types/src/display/display_utils'
 import {
   ensurePdfjsStandardFontDataUrlConfigured,
   ensurePdfjsWorkerConfigured
@@ -67,6 +68,33 @@ type DecodeFontSet = {
   replacementCharacter: string
 }
 
+export type DecodeOptions = {
+  fonts?: DecodeFontInput
+}
+
+export type EncodeOptions = {
+  maxPages?: number
+  pageLoadTimeoutMs?: number
+}
+
+export type DecodeProgressEvent = {
+  stage: 'decode:start' | 'decode:page' | 'decode:complete'
+  current: number
+  total: number
+  message?: string
+}
+
+export type DecodeProgressReporter = (progress: DecodeProgressEvent) => void
+
+export type EncodeProgressEvent = {
+  stage: 'encode:start' | 'encode:page' | 'encode:complete'
+  current: number
+  total: number
+  message?: string
+}
+
+export type EncodeProgressReporter = (progress: EncodeProgressEvent) => void
+
 type TextMetrics = {
   width: number
   height: number
@@ -78,7 +106,24 @@ type TextMetrics = {
   lineHeight: number
 }
 
+type LoadedPdfSession = {
+  loadingTask: PDFDocumentLoadingTask
+  pdf: PDFDocumentProxy
+}
+
+type PageInfo = {
+  id: string
+  pageNumber: number
+  size: Number2
+  getData: () => Promise<IntermediatePage>
+}
+
 export class PdfParser extends DocumentParser {
+  private static readonly defaultEncodeOptions: Required<EncodeOptions> = {
+    maxPages: Number.POSITIVE_INFINITY,
+    pageLoadTimeoutMs: 30000
+  }
+
   private static pdfjsModulePromise:
     | Promise<
         Pick<typeof import('pdfjs-dist'), 'getDocument' | 'GlobalWorkerOptions'>
@@ -90,6 +135,8 @@ export class PdfParser extends DocumentParser {
   private static decodeFontBytesPromise:
     | Promise<Uint8Array[] | undefined>
     | undefined
+
+  private static __yieldHook: (() => Promise<void>) | undefined = undefined
 
   static configureDecodeFont(config?: DecodeFontInput): void {
     const normalizedConfigs = PdfParser.normalizeDecodeFontConfigs(config)
@@ -113,42 +160,117 @@ export class PdfParser extends DocumentParser {
   static readonly exts = ['pdf'] as const
 
   static async encode(
-    fileOrBuffer: File | ArrayBuffer
+    fileOrBuffer: File | ArrayBuffer,
+    options: EncodeOptions = {},
+    onProgress?: EncodeProgressReporter
   ): Promise<IntermediateDocument | undefined> {
     const buffer = await PdfParser.toArrayBuffer(fileOrBuffer).catch(
       () => undefined
     )
     if (!buffer) return undefined
 
-    const pdf = await PdfParser.loadPdf(buffer)
-
-    let title = 'Untitled PDF'
-    try {
-      const meta = await pdf.getMetadata()
-      title = (meta?.info as { Title: string })?.Title || title
-    } catch {
-      title = 'Untitled PDF'
+    if (typeof options === 'function') {
+      throw new TypeError(
+        'PdfParser.encode() no longer accepts a progress function as the second argument. ' +
+          'Use PdfParser.encode(input, options, reporter) instead.'
+      )
     }
-    const id = (pdf.fingerprints?.[0] ?? `pdf-${Date.now()}`) as string
 
-    const infoList = await PdfParser.buildPageInfoList(pdf, id)
-    const pagesMap = IntermediatePageMap.makeByInfoList(infoList)
-    const outline = await PdfParser.buildOutline(pdf, id).catch(() => undefined)
-    return new IntermediateDocument({ id, title, pagesMap, outline })
+    const primarySession = await PdfParser.loadPdfSession(buffer)
+
+    try {
+      const pdf = primarySession.pdf
+
+      let title = 'Untitled PDF'
+      try {
+        const meta = await pdf.getMetadata()
+        title = (meta?.info as { Title: string })?.Title || title
+      } catch {
+        title = 'Untitled PDF'
+      }
+      const id = (pdf.fingerprints?.[0] ?? `pdf-${Date.now()}`) as string
+
+      const encodeOptions = PdfParser.resolveEncodeOptions(
+        options,
+        pdf.numPages
+      )
+      const total = Math.min(pdf.numPages, encodeOptions.maxPages)
+      if (onProgress) {
+        onProgress({ stage: 'encode:start', current: 0, total })
+      }
+      const infoList = await PdfParser.buildPageInfoListWithSessions(
+        buffer,
+        pdf,
+        id,
+        encodeOptions,
+        onProgress
+      )
+      const pagesMap = IntermediatePageMap.makeByInfoList(infoList)
+      const outline = await PdfParser.buildOutline(pdf, id).catch(
+        () => undefined
+      )
+      const result = new IntermediateDocument({ id, title, pagesMap, outline })
+      if (onProgress) {
+        onProgress({ stage: 'encode:complete', current: total, total })
+      }
+      return result
+    } finally {
+      await PdfParser.destroyLoadedPdfSession(primarySession)
+    }
+  }
+
+  private static resolveEncodeOptions(
+    options: EncodeOptions,
+    totalPages: number
+  ): Required<EncodeOptions> {
+    const maxPages = Number.isFinite(options.maxPages)
+      ? Math.floor(options.maxPages as number)
+      : PdfParser.defaultEncodeOptions.maxPages
+    const pageLoadTimeoutMs = Number.isFinite(options.pageLoadTimeoutMs)
+      ? Math.floor(options.pageLoadTimeoutMs as number)
+      : PdfParser.defaultEncodeOptions.pageLoadTimeoutMs
+
+    return {
+      maxPages: Number.isFinite(maxPages)
+        ? PdfParser.clamp(maxPages, 1, Math.max(1, totalPages))
+        : Math.max(1, totalPages),
+      pageLoadTimeoutMs: Math.max(1, pageLoadTimeoutMs)
+    }
   }
 
   static async decode(
-    intermediateDocument: IntermediateDocument
+    intermediateDocument: IntermediateDocument,
+    options: DecodeOptions = {},
+    onProgress?: DecodeProgressReporter
   ): Promise<File | ArrayBuffer | undefined> {
+    if (typeof options === 'function') {
+      throw new TypeError(
+        'PdfParser.decode() no longer accepts a progress function as the second argument. ' +
+          'Use PdfParser.decode(document, options, reporter) instead.'
+      )
+    }
+
     const pages = await PdfParser.resolveIntermediatePages(intermediateDocument)
     if (pages.length === 0) return undefined
+    const hasFontOverride = Object.hasOwn(options, 'fonts')
+
+    const pageCount = pages.length
+
+    if (onProgress) {
+      onProgress({ stage: 'decode:start', current: 0, total: pageCount })
+    }
 
     const pdfDocument = await PDFDocument.create()
-    const decodeFontSet = await PdfParser.resolveDecodeFonts(pdfDocument)
+    const decodeFontSet = await PdfParser.resolveDecodeFonts(
+      pdfDocument,
+      options.fonts,
+      hasFontOverride
+    )
     const pagePlans: PdfPagePlan[] = []
     let hasRenderableContent = false
 
-    for (const page of pages) {
+    for (let index = 0; index < pages.length; index++) {
+      const page = pages[index]
       const pageWidth = PdfParser.normalizeDimension(page.width)
       const pageHeight = PdfParser.normalizeDimension(page.height)
       if (!pageWidth || !pageHeight) continue
@@ -161,7 +283,7 @@ export class PdfParser extends DocumentParser {
         pageWidth,
         pageHeight
       )
-      if (!texts) return undefined
+      if (texts === undefined) return undefined
       if (texts.length > 0 || background) hasRenderableContent = true
       pagePlans.push({
         width: pageWidth,
@@ -169,6 +291,14 @@ export class PdfParser extends DocumentParser {
         texts,
         background
       })
+
+      if (onProgress) {
+        onProgress({
+          stage: 'decode:page',
+          current: index + 1,
+          total: pageCount
+        })
+      }
     }
 
     if (!hasRenderableContent || pagePlans.length === 0) return undefined
@@ -180,6 +310,15 @@ export class PdfParser extends DocumentParser {
     }
 
     const pdfBytes = await pdfDocument.save()
+
+    if (onProgress) {
+      onProgress({
+        stage: 'decode:complete',
+        current: pageCount,
+        total: pageCount
+      })
+    }
+
     return Uint8Array.from(pdfBytes).buffer
   }
 
@@ -512,10 +651,14 @@ export class PdfParser extends DocumentParser {
   }
 
   private static async resolveDecodeFonts(
-    pdfDocument: PDFDocument
+    pdfDocument: PDFDocument,
+    fontOverride: DecodeFontInput | undefined,
+    hasFontOverride = false
   ): Promise<DecodeFontSet> {
     const fonts: ResolvedDecodeFont[] = []
-    const customFontBytesList = await PdfParser.loadDecodeFontBytes()
+    const customFontBytesList = hasFontOverride
+      ? await PdfParser.loadDecodeFontBytesForConfig(fontOverride)
+      : await PdfParser.loadDecodeFontBytes()
 
     if (customFontBytesList) {
       pdfDocument.registerFontkit(fontkit)
@@ -559,6 +702,17 @@ export class PdfParser extends DocumentParser {
     }
 
     return PdfParser.decodeFontBytesPromise
+  }
+
+  private static async loadDecodeFontBytesForConfig(
+    fontInput?: DecodeFontInput
+  ): Promise<Uint8Array[] | undefined> {
+    const configs = PdfParser.normalizeDecodeFontConfigs(fontInput)
+    if (!configs || configs.length === 0) {
+      return undefined
+    }
+
+    return PdfParser.resolveDecodeFontBytesList(configs)
   }
 
   private static async resolveDecodeFontBytesList(
@@ -653,7 +807,12 @@ export class PdfParser extends DocumentParser {
     return PdfParser.clamp(candidateY, 0, maxY)
   }
 
-  private static async loadPdf(data: ArrayBuffer): Promise<PDFDocumentProxy> {
+  private static async loadPdfSession(
+    data: ArrayBuffer,
+    overrides?: Partial<
+      Parameters<(typeof import('pdfjs-dist'))['getDocument']>[0]
+    >
+  ): Promise<LoadedPdfSession> {
     const { getDocument, GlobalWorkerOptions } =
       await PdfParser.loadPdfjsModule()
     ensurePdfjsWorkerConfigured(GlobalWorkerOptions)
@@ -661,9 +820,31 @@ export class PdfParser extends DocumentParser {
     const dataCopy = data.slice(0)
     const loadingTask = getDocument({
       data: new Uint8Array(dataCopy),
-      standardFontDataUrl
+      standardFontDataUrl,
+      ...overrides
     } as Parameters<typeof getDocument>[0])
-    return loadingTask.promise
+    const pdf = await loadingTask.promise
+
+    return {
+      loadingTask,
+      pdf
+    }
+  }
+
+  private static async destroyLoadedPdfSession(
+    session: LoadedPdfSession | undefined
+  ): Promise<void> {
+    if (!session) {
+      return
+    }
+
+    try {
+      session.pdf.cleanup()
+    } catch {
+      // Ignore cleanup errors while tearing down the document session.
+    }
+
+    await session.loadingTask.destroy().catch(() => undefined)
   }
 
   private static loadPdfjsModule(): Promise<
@@ -675,46 +856,258 @@ export class PdfParser extends DocumentParser {
     return PdfParser.pdfjsModulePromise
   }
 
+  private static async encodeYield(): Promise<void> {
+    if (PdfParser.__yieldHook) {
+      return PdfParser.__yieldHook()
+    }
+
+    const g = globalThis as unknown as {
+      scheduler?: { yield?: () => Promise<void> }
+    }
+    if (typeof g.scheduler?.yield === 'function') {
+      return g.scheduler.yield()
+    }
+
+    return new Promise<void>((resolve) => setTimeout(resolve, 0))
+  }
+
+  private static async buildPageInfoListWithSessions(
+    data: ArrayBuffer,
+    pdf: PDFDocumentProxy,
+    pdfId: string,
+    options: Required<EncodeOptions>,
+    onProgress?: EncodeProgressReporter
+  ): Promise<PageInfo[]> {
+    const total = Math.min(pdf.numPages, options.maxPages)
+    if (total === 0) {
+      return []
+    }
+
+    const batchSize = PdfParser.resolvePageScanBatchSize(total)
+    if (batchSize >= total) {
+      return PdfParser.buildPageInfoList(pdf, pdfId, options, onProgress, data)
+    }
+
+    const concurrency = PdfParser.resolvePageScanConcurrency(total)
+    const infoList: PageInfo[] = []
+
+    for (let startPage = 1; startPage <= total; startPage += batchSize) {
+      const endPage = Math.min(total, startPage + batchSize - 1)
+      const batchSession = await PdfParser.loadPdfSession(data)
+
+      try {
+        await PdfParser.buildPageInfoRange(
+          batchSession.pdf,
+          pdfId,
+          startPage,
+          endPage,
+          concurrency,
+          options.pageLoadTimeoutMs,
+          data,
+          async (pageInfo) => {
+            infoList.push(pageInfo)
+            if (onProgress) {
+              onProgress({
+                stage: 'encode:page',
+                current: pageInfo.pageNumber,
+                total
+              })
+            }
+          }
+        )
+      } finally {
+        await PdfParser.destroyLoadedPdfSession(batchSession)
+      }
+    }
+
+    return infoList
+  }
+
   private static async buildPageInfoList(
     pdf: PDFDocumentProxy,
-    pdfId: string
-  ): Promise<
-    {
-      id: string
-      pageNumber: number
-      size: Number2
-      getData: () => Promise<IntermediatePage>
-    }[]
-  > {
-    const total = pdf.numPages
-    const result: {
-      id: string
-      pageNumber: number
-      size: Number2
-      getData: () => Promise<IntermediatePage>
-    }[] = []
-    for (let n = 1; n <= total; n++) {
-      const page = await pdf.getPage(n)
-      const viewport = page.getViewport({ scale: 1 })
-      const id = `${pdfId}-page-${n}`
-      const size: Number2 = { x: viewport.width, y: viewport.height }
-      const getData = () => PdfParser.buildIntermediatePage(pdf, n, pdfId)
-      result.push({ id, pageNumber: n, size, getData })
-      page.cleanup?.()
+    pdfId: string,
+    options: Required<EncodeOptions>,
+    onProgress?: EncodeProgressReporter,
+    documentData?: ArrayBuffer
+  ): Promise<PageInfo[]> {
+    const total = Math.min(pdf.numPages, options.maxPages)
+    if (total === 0) {
+      return []
     }
-    return result
+    const concurrency = PdfParser.resolvePageScanConcurrency(total)
+    const infoList: PageInfo[] = []
+
+    await PdfParser.buildPageInfoRange(
+      pdf,
+      pdfId,
+      1,
+      total,
+      concurrency,
+      options.pageLoadTimeoutMs,
+      documentData,
+      async (pageInfo) => {
+        infoList.push(pageInfo)
+        if (onProgress) {
+          onProgress({
+            stage: 'encode:page',
+            current: pageInfo.pageNumber,
+            total
+          })
+        }
+      }
+    )
+
+    return infoList
+  }
+
+  private static resolvePageScanConcurrency(totalPages: number): number {
+    if (totalPages <= 4) {
+      return Math.max(1, totalPages)
+    }
+
+    if (totalPages <= 12) {
+      return 2
+    }
+
+    return 1
+  }
+
+  private static resolvePageScanBatchSize(totalPages: number): number {
+    if (totalPages <= 12) {
+      return totalPages
+    }
+
+    return 8
+  }
+
+  private static async buildPageInfoRange(
+    pdf: PDFDocumentProxy,
+    pdfId: string,
+    startPage: number,
+    endPage: number,
+    concurrency: number,
+    pageLoadTimeoutMs: number,
+    documentData?: ArrayBuffer,
+    onPageReady?: (pageInfo: PageInfo) => Promise<void> | void
+  ): Promise<PageInfo[]> {
+    const total = endPage - startPage + 1
+    const slots: Array<PageInfo | undefined> = new Array(total).fill(undefined)
+    let nextToEmit = startPage
+    let nextToFetch = startPage
+    let inFlight = 0
+
+    return new Promise((resolve, reject) => {
+      let settled = false
+
+      async function onPageLoaded(
+        intermediatePage: IntermediatePage,
+        pageNumber: number,
+        dataPromise: Promise<IntermediatePage>
+      ) {
+        if (settled) return
+        const id = `${pdfId}-page-${pageNumber}`
+        const size: Number2 = {
+          x: intermediatePage.width,
+          y: intermediatePage.height
+        }
+        const getData = () => dataPromise
+        slots[pageNumber - startPage] = {
+          id,
+          pageNumber,
+          size,
+          getData
+        }
+
+        while (
+          nextToEmit <= endPage &&
+          slots[nextToEmit - startPage] !== undefined
+        ) {
+          const pageInfo = slots[nextToEmit - startPage]
+          if (pageInfo) {
+            await onPageReady?.(pageInfo)
+          }
+          nextToEmit++
+        }
+        inFlight--
+        if (nextToEmit > endPage && inFlight === 0) {
+          settled = true
+          resolve(slots.filter((page): page is PageInfo => page !== undefined))
+        } else {
+          if (nextToFetch <= endPage) {
+            await PdfParser.encodeYield().catch(() => undefined)
+          }
+          tryLaunch()
+        }
+      }
+
+      function tryLaunch() {
+        while (!settled && inFlight < concurrency && nextToFetch <= endPage) {
+          const pageNumber = nextToFetch++
+          inFlight++
+          const dataPromise = PdfParser.buildIntermediatePage(
+            pdf,
+            pageNumber,
+            pdfId,
+            pageLoadTimeoutMs,
+            documentData
+          )
+          dataPromise
+            .then((page) => onPageLoaded(page, pageNumber, dataPromise))
+            .catch((err) => {
+              inFlight--
+              if (!settled) {
+                settled = true
+                reject(err)
+              }
+            })
+        }
+      }
+
+      tryLaunch()
+    })
+  }
+
+  private static async withTimeout<T>(
+    operation: Promise<T>,
+    timeoutMs: number,
+    timeoutMessage: string
+  ): Promise<T> {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const timeoutPromise = new Promise<T>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(timeoutMessage))
+      }, timeoutMs)
+    })
+
+    try {
+      return await Promise.race([operation, timeoutPromise])
+    } finally {
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId)
+      }
+    }
   }
 
   private static async buildIntermediatePage(
     pdf: PDFDocumentProxy,
     pageNumber: number,
-    pdfId: string
+    pdfId: string,
+    pageLoadTimeoutMs: number,
+    documentData?: ArrayBuffer
   ): Promise<IntermediatePage> {
-    const page = await pdf.getPage(pageNumber)
+    const page = await PdfParser.withTimeout(
+      pdf.getPage(pageNumber),
+      pageLoadTimeoutMs,
+      `Timed out while loading page ${pageNumber} during PDF encode`
+    )
     const viewport = page.getViewport({ scale: 1 })
-    const textContent = await page.getTextContent({
-      includeMarkedContent: false
-    })
+    const textContent = await PdfParser.withTimeout(
+      page.getTextContent({
+        includeMarkedContent: false
+      }),
+      pageLoadTimeoutMs,
+      `Timed out while extracting text from page ${pageNumber} during PDF encode`
+    )
     const texts = PdfParser.mapTextContentToIntermediate(
       textContent,
       pdfId,
@@ -731,6 +1124,13 @@ export class PdfParser extends DocumentParser {
     })
     intermediatePage.setGetThumbnail(async (scale: number) => {
       try {
+        if (documentData) {
+          return PdfParser.renderThumbnailFromData(
+            documentData,
+            pageNumber,
+            scale
+          )
+        }
         const p = await pdf.getPage(pageNumber)
         const url = await PdfParser.renderThumbnail(p, scale)
         p.cleanup?.()
@@ -742,6 +1142,23 @@ export class PdfParser extends DocumentParser {
     intermediatePage.setGetTexts(async () => texts)
     page.cleanup?.()
     return intermediatePage
+  }
+
+  private static async renderThumbnailFromData(
+    data: ArrayBuffer,
+    pageNumber: number,
+    scale: number
+  ): Promise<string | undefined> {
+    const session = await PdfParser.loadPdfSession(data)
+
+    try {
+      const page = await session.pdf.getPage(pageNumber)
+      const url = await PdfParser.renderThumbnail(page, scale)
+      page.cleanup?.()
+      return url
+    } finally {
+      await PdfParser.destroyLoadedPdfSession(session)
+    }
   }
 
   private static async buildOutline(

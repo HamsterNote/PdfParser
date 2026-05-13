@@ -1,0 +1,34 @@
+FAIL
+
+审查范围：.sisyphus/plans/pdfjs-worker-initialization.md、src/pdfjsWorker.ts、src/pdfParser.ts、scripts/copyPdfjsWorker.mjs、package.json、src/index.ts、src/browser.ts、rolldown.config.ts
+
+Task 1: 部分符合 / FAIL
+- PASS: `src/pdfjsWorker.ts` 存在，并实现了 `ensurePdfjsWorkerConfigured()`。
+- PASS: 浏览器分支使用 `new URL('./pdf.worker.min.mjs', import.meta.url).href`（`src/pdfjsWorker.ts:18-20`）。
+- PASS: Node 分支使用 `createRequire(import.meta.url).resolve('pdfjs-dist/legacy/build/pdf.worker.min.mjs')`，并通过 `pathToFileURL` 转成 `file://` URL（`src/pdfjsWorker.ts:22-25`）。
+- PASS: 存在缓存 `cachedWorkerSrc`，已解析后重复调用不会再次执行解析（`src/pdfjsWorker.ts:5, 35-42`）。
+- FAIL: 不完全满足“已有非空字符串则直接返回原值、不覆盖宿主预设值”。`getConfiguredWorkerSrc()` 将 `"./pdf.worker.mjs"` 特判为未配置（`src/pdfjsWorker.ts:6, 8-15`），与计划中“若已有非空字符串则直接返回该值”的要求不一致；若宿主显式预设该值，当前实现会继续解析并覆盖。
+
+Task 2: 符合 / PASS
+- PASS: `loadPdf()` 在 `getDocument()` 之前调用 `ensurePdfjsWorkerConfigured()`（`src/pdfParser.ts:80-85`）。
+- PASS: 自动初始化仅挂在 `loadPdf()` 前，没有放到模块顶层，也没有改动 `decode()` / `renderThumbnail()` 相关逻辑。
+
+Task 3: 符合 / PASS
+- PASS: `scripts/copyPdfjsWorker.mjs` 存在，负责把 `node_modules/pdfjs-dist/build/pdf.worker.min.mjs` 复制到 `dist/pdf.worker.min.mjs`（`scripts/copyPdfjsWorker.mjs:3-10`）。
+- PASS: `build:all` 已更新为先构建再执行复制脚本；`prepublishOnly` 仍调用 `build:all`（`package.json:6,13`）。
+
+Must Have 检查：
+- PASS: 浏览器分支 worker URL 推导方式符合要求。
+- PASS: Node/Jest 分支 worker 解析方式符合要求。
+- FAIL: “宿主已预设非空 `GlobalWorkerOptions.workerSrc` 时不覆盖”未完全满足，原因同 Task 1。
+- PASS: 自动初始化只挂在 `PdfParser.loadPdf()` 之前，不在 `src/index.ts` / `src/browser.ts` 顶层执行。
+- PASS: bundling 模式保持不变：`rolldown.config.ts` 仍为 ES 输出，且 `external` 仍是 `['pdfjs-dist', /^node:/]`（`rolldown.config.ts:1-9`）。
+
+Must NOT Have 检查：
+- PASS: 未在 `src/index.ts` 或 `src/browser.ts` 新增公开 setup/configure API。
+- PASS: 未看到将 `pdfjs-dist` 内联进 bundle、改成 CJS、或新增额外 bundle 产物的迹象。
+- PASS: 未依赖 CDN 或 `document.currentScript`。
+
+最终结论：FAIL
+
+根因：当前 `src/pdfjsWorker.ts` 对 `GlobalWorkerOptions.workerSrc === "./pdf.worker.mjs"` 做了额外排除，不符合计划要求的“已有非空字符串即保留原值”，因此不能判定为完全符合计划。

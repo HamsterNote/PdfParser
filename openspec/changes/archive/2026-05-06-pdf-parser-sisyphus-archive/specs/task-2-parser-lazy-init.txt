@@ -1,0 +1,18 @@
+
+> @hamster-note/pdf-parser@0.3.0 test
+> NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.js --runInBand src/__tests__/pdfParserWorkerOverride.test.ts
+
+(node:38178) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS src/__tests__/pdfParserWorkerOverride.test.ts
+  PdfParser worker override regression tests
+    auto initializes when workerSrc is empty
+      ✓ should auto-initialize worker and parse PDF without manual setup (50 ms)
+    preserves custom workerSrc during parsing
+      ✓ should not override custom workerSrc when parsing (12 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+Snapshots:   0 total
+Time:        0.77 s, estimated 1 s
+Ran all test suites matching src/__tests__/pdfParserWorkerOverride.test.ts.
