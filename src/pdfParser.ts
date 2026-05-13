@@ -252,6 +252,7 @@ export class PdfParser extends DocumentParser {
 
     const pages = await PdfParser.resolveIntermediatePages(intermediateDocument)
     if (pages.length === 0) return undefined
+    const hasFontOverride = Object.hasOwn(options, 'fonts')
 
     const pageCount = pages.length
 
@@ -262,7 +263,8 @@ export class PdfParser extends DocumentParser {
     const pdfDocument = await PDFDocument.create()
     const decodeFontSet = await PdfParser.resolveDecodeFonts(
       pdfDocument,
-      options.fonts
+      options.fonts,
+      hasFontOverride
     )
     const pagePlans: PdfPagePlan[] = []
     let hasRenderableContent = false
@@ -650,10 +652,11 @@ export class PdfParser extends DocumentParser {
 
   private static async resolveDecodeFonts(
     pdfDocument: PDFDocument,
-    fontOverride?: DecodeFontInput
+    fontOverride: DecodeFontInput | undefined,
+    hasFontOverride = false
   ): Promise<DecodeFontSet> {
     const fonts: ResolvedDecodeFont[] = []
-    const customFontBytesList = fontOverride
+    const customFontBytesList = hasFontOverride
       ? await PdfParser.loadDecodeFontBytesForConfig(fontOverride)
       : await PdfParser.loadDecodeFontBytes()
 
@@ -702,7 +705,7 @@ export class PdfParser extends DocumentParser {
   }
 
   private static async loadDecodeFontBytesForConfig(
-    fontInput: DecodeFontInput
+    fontInput?: DecodeFontInput
   ): Promise<Uint8Array[] | undefined> {
     const configs = PdfParser.normalizeDecodeFontConfigs(fontInput)
     if (!configs || configs.length === 0) {

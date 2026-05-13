@@ -120,6 +120,7 @@ export function createProgressiveSerializer(intermediate, options = {}) {
       available,
       pageCount
     })
+    notifySubscribers()
   })
 
   function notifySubscribers() {

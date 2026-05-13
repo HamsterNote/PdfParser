@@ -659,9 +659,6 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
       const doc1 = createStructuredDocument([
         createRenderableText({ content: '文档一中文本' })
       ])
-      const doc2 = createStructuredDocument([
-        createRenderableText({ content: 'Document Two English' })
-      ])
 
       PdfParser.configureDecodeFont({
         data: cjkFontBuffer
@@ -671,18 +668,33 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
         const decoded1 = await PdfParser.decode(doc1)
         expect(decoded1).toBeInstanceOf(ArrayBuffer)
 
-        const decoded2 = await PdfParser.decode(doc2, {
+        const reparsed1 = await PdfParser.encode(decoded1 as ArrayBuffer)
+        const reparsedPage1 = await reparsed1?.getPageByPageNumber(1)
+        const reparsedText1 =
+          reparsedPage1?.texts?.map((t) => t.content).join('') ?? ''
+        expect(reparsedText1).toContain('文档一中文本')
+
+        const decoded2 = await PdfParser.decode(doc1, {
           fonts: undefined
         })
         expect(decoded2).toBeInstanceOf(ArrayBuffer)
+
+        const reparsed2 = await PdfParser.encode(decoded2 as ArrayBuffer)
+        const reparsedPage2 = await reparsed2?.getPageByPageNumber(1)
+        const reparsedText2 =
+          reparsedPage2?.texts?.map((t) => t.content).join('') ?? ''
+        expect(reparsedText2).not.toContain('文档一中文本')
 
         const decoded3 = await PdfParser.decode(doc1, {
           fonts: { data: cjkFontBuffer }
         })
         expect(decoded3).toBeInstanceOf(ArrayBuffer)
 
-        const decoded4 = await PdfParser.decode(doc2)
-        expect(decoded4).toBeInstanceOf(ArrayBuffer)
+        const reparsed3 = await PdfParser.encode(decoded3 as ArrayBuffer)
+        const reparsedPage3 = await reparsed3?.getPageByPageNumber(1)
+        const reparsedText3 =
+          reparsedPage3?.texts?.map((t) => t.content).join('') ?? ''
+        expect(reparsedText3).toContain('文档一中文本')
       } finally {
         PdfParser.configureDecodeFont()
       }

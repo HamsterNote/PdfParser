@@ -287,6 +287,10 @@ function createDelayedTextGetter(page: IntermediatePage, delayMs: number) {
   }
 }
 
+function waitMs(delayMs: number) {
+  return new Promise((resolve) => setTimeout(resolve, delayMs))
+}
+
 function createSimplePagesMap(
   entries: Array<{
     id: string
@@ -486,6 +490,47 @@ describe('demoDocumentSerialization', () => {
           current: progressEvents[progressEvents.length - 1].total
         })
       )
+    })
+
+    it('notifies subscribers when cover status resolves before page summaries', async () => {
+      const page = new IntermediatePage({
+        id: 'p1',
+        width: 100,
+        height: 200,
+        number: 1,
+        texts: [],
+        paragraphs: []
+      })
+
+      const doc = {
+        id: 'doc-cover-update',
+        title: 'Cover Update Test',
+        pageCount: 1,
+        pageNumbers: [1],
+        outline: [],
+        getOutline: () => [],
+        getCover: async () => {
+          await waitMs(10)
+          return 'data:image/png;base64,abc123'
+        },
+        getPageByPageNumber: async () => {
+          await waitMs(50)
+          return page
+        },
+        getPageSizeByPageNumber: () => ({ x: 100, y: 200 })
+      }
+
+      const serializer = createProgressiveSerializer(doc)
+      const coverUpdates: boolean[] = []
+      serializer.onUpdate((snapshot) => {
+        coverUpdates.push(snapshot.coverAvailable)
+      })
+
+      await waitMs(20)
+
+      expect(coverUpdates).toContain(true)
+
+      await serializer.resolve()
     })
 
     it('does not use Promise.all for page text resolution', async () => {
