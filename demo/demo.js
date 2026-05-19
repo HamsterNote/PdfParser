@@ -61,6 +61,7 @@ const decodeFontSetupPromise = configureDemoDecodeFonts()
 
 const loadSampleButton = document.getElementById('demo-load-sample')
 const fileInput = document.getElementById('pdf-file-input')
+const pageNumberInput = document.getElementById('page-number-input')
 const encodeButton = document.getElementById('encode-button')
 const decodeButton = document.getElementById('decode-button')
 const jsonOutputToggle = document.getElementById('json-output-toggle')
@@ -101,6 +102,14 @@ let latestJsonOutput = {
 }
 
 const isJsonOutputEnabled = () => jsonOutputToggle?.checked !== false
+
+const getSelectedPageNumber = () => {
+  if (!pageNumberInput) return undefined
+  const value = pageNumberInput.value.trim()
+  if (value === '') return undefined
+  const num = parseInt(value, 10)
+  return Number.isFinite(num) && num >= 1 ? num : undefined
+}
 
 const syncJsonOutputVisibility = () => {
   if (jsonOutputCardElement) {
@@ -441,6 +450,9 @@ const formatEncodeProgressText = (event) => {
   }
 
   if (total > 0) {
+    if (total === 1) {
+      return 'Encoding page 1...'
+    }
     return `Encoding page ${Math.min(current, total)} of ${total}...`
   }
 
@@ -525,16 +537,20 @@ const disableEncodeButton = () => {
   }
 }
 
-const renderSummary = (serialized) => {
+const renderSummary = (serialized, singlePageNumber) => {
   const pageCount = Number.isFinite(serialized.pageCount)
     ? serialized.pageCount
     : 0
   const hasOutline = Boolean(serialized.hasOutline)
+  const pageCountText =
+    singlePageNumber != null && pageCount > 0
+      ? `Page ${singlePageNumber} of ${pageCount}`
+      : `${pageCount}`
 
   setSummary(`
     <p><strong>Title:</strong> ${escapeHtml(serialized.title || 'N/A')}</p>
     <p><strong>ID:</strong> ${escapeHtml(serialized.id || 'N/A')}</p>
-    <p><strong>Page Count:</strong> ${pageCount}</p>
+    <p><strong>Page Count:</strong> ${pageCountText}</p>
     <p><strong>Outline:</strong> ${hasOutline ? 'available' : 'none'}</p>
   `)
 }
@@ -628,7 +644,11 @@ const handleEncode = async () => {
     note: 'Only the newest successful encode result can be decoded.'
   })
 
-  setStatus('Encoding...')
+  const pageNumber = getSelectedPageNumber()
+  const encodeStatusPrefix = pageNumber
+    ? `Encoding page ${pageNumber}...`
+    : 'Encoding...'
+  setStatus(encodeStatusPrefix)
   setError('')
   renderDiagnosticsPlaceholder('Collecting encode diagnostics...')
   setJsonOutputMessage('Working...')
@@ -654,29 +674,34 @@ const handleEncode = async () => {
 
   try {
     const arrayBuffer = await currentFile.arrayBuffer()
-    const intermediate = await PdfParser.encode(arrayBuffer, {}, (event) => {
-      if (encodeContextId !== activeDecodeContextId) {
-        return
-      }
+    const encodeOptions = pageNumber ? { pages: [pageNumber] } : {}
+    const intermediate = await PdfParser.encode(
+      arrayBuffer,
+      encodeOptions,
+      (event) => {
+        if (encodeContextId !== activeDecodeContextId) {
+          return
+        }
 
-      setStatus(formatEncodeProgressText(event))
+        setStatus(formatEncodeProgressText(event))
 
-      if (event?.stage === 'encode:start') {
-        setPreviewNote('Encoding PDF pages...')
-      }
+        if (event?.stage === 'encode:start') {
+          setPreviewNote('Encoding PDF pages...')
+        }
 
-      if (event?.stage === 'encode:page' && event.total > 0) {
-        const pageLabel = event.total === 1 ? 'page' : 'pages'
-        setPreviewNote(
-          `Processed ${event.current} / ${event.total} ${pageLabel} so far.`
-        )
-      }
+        if (event?.stage === 'encode:page' && event.total > 0) {
+          const pageLabel = event.total === 1 ? 'page' : 'pages'
+          setPreviewNote(
+            `Processed ${event.current} / ${event.total} ${pageLabel} so far.`
+          )
+        }
 
-      if (event?.stage === 'encode:complete') {
-        encodeDiagnostics.milestones.encodeCompleteAt = roundMs(getNow())
-        setPreviewNote('Finalizing the restored PDF preview...')
+        if (event?.stage === 'encode:complete') {
+          encodeDiagnostics.milestones.encodeCompleteAt = roundMs(getNow())
+          setPreviewNote('Finalizing the restored PDF preview...')
+        }
       }
-    })
+    )
 
     if (encodeContextId !== activeDecodeContextId) {
       return
@@ -728,7 +753,7 @@ const handleEncode = async () => {
     })
     renderJsonOutputData(serializer.shell)
     encodeDiagnostics.milestones.shellRenderedAt = roundMs(getNow())
-    renderSummary(serializer.shell)
+    renderSummary(serializer.shell, pageNumber)
 
     serializer.onUpdate((snapshot) => {
       if (encodeContextId !== activeDecodeContextId) {
@@ -736,7 +761,7 @@ const handleEncode = async () => {
       }
 
       updateJsonOutputData(snapshot)
-      renderSummary(snapshot)
+      renderSummary(snapshot, pageNumber)
     })
 
     const finalSnapshot = await serializer.resolve()
@@ -747,7 +772,7 @@ const handleEncode = async () => {
     }
 
     updateJsonOutputData(finalSnapshot)
-    renderSummary(finalSnapshot)
+    renderSummary(finalSnapshot, pageNumber)
     activateDecodeContext(intermediate)
 
     encodeDiagnostics.milestones.readyAt = roundMs(getNow())

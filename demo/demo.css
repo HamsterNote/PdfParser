@@ -318,3 +318,26 @@ input[type='file'] {
 .button-secondary:hover {
   background: #e0e7ff;
 }
+
+.page-select-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.page-select-row label {
+  font-weight: 500;
+}
+
+.page-select-row input[type="number"] {
+  width: 80px;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.page-hint {
+  color: #666;
+  font-size: 0.875rem;
+}

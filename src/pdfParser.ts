@@ -1,4 +1,12 @@
 import { DocumentParser, type ParserInput } from '@hamster-note/document-parser'
+import type {
+  IntermediateOutlineDest,
+  IntermediateOutlineDestPage,
+  IntermediateOutlineDestPosition,
+  IntermediateOutlineDestUrl,
+  IntermediateTextPolygon,
+  Number2
+} from '@hamster-note/types'
 import {
   IntermediateDocument,
   IntermediateOutline,
@@ -8,16 +16,8 @@ import {
   IntermediateText,
   TextDir
 } from '@hamster-note/types'
-import type {
-  IntermediateOutlineDest,
-  IntermediateOutlineDestPage,
-  IntermediateOutlineDestPosition,
-  IntermediateOutlineDestUrl,
-  IntermediateTextPolygon,
-  Number2
-} from '@hamster-note/types'
 import fontkit from '@pdf-lib/fontkit'
-import { PDFDocument, StandardFonts, type PDFFont, type PDFPage } from 'pdf-lib'
+import { PDFDocument, type PDFFont, type PDFPage, StandardFonts } from 'pdf-lib'
 import type {
   PDFDocumentLoadingTask,
   PDFDocumentProxy,
@@ -74,6 +74,7 @@ export type DecodeOptions = {
 
 export type EncodeOptions = {
   maxPages?: number
+  pages?: number[]
   pageLoadTimeoutMs?: number
 }
 
@@ -121,6 +122,7 @@ type PageInfo = {
 export class PdfParser extends DocumentParser {
   private static readonly defaultEncodeOptions: Required<EncodeOptions> = {
     maxPages: Number.POSITIVE_INFINITY,
+    pages: [],
     pageLoadTimeoutMs: 30000
   }
 
@@ -194,7 +196,10 @@ export class PdfParser extends DocumentParser {
         options,
         pdf.numPages
       )
-      const total = Math.min(pdf.numPages, encodeOptions.maxPages)
+      const total =
+        encodeOptions.pages.length > 0
+          ? encodeOptions.pages.length
+          : Math.min(pdf.numPages, encodeOptions.maxPages)
       if (onProgress) {
         onProgress({ stage: 'encode:start', current: 0, total })
       }
@@ -229,11 +234,28 @@ export class PdfParser extends DocumentParser {
     const pageLoadTimeoutMs = Number.isFinite(options.pageLoadTimeoutMs)
       ? Math.floor(options.pageLoadTimeoutMs as number)
       : PdfParser.defaultEncodeOptions.pageLoadTimeoutMs
+    const pages = Array.isArray(options.pages)
+      ? options.pages.filter(
+          (pageNumber) =>
+            Number.isInteger(pageNumber) &&
+            pageNumber >= 1 &&
+            pageNumber <= totalPages
+        )
+      : PdfParser.defaultEncodeOptions.pages
+
+    if (
+      Array.isArray(options.pages) &&
+      options.pages.length > 0 &&
+      pages.length === 0
+    ) {
+      throw new RangeError('No valid pages specified for PDF encode')
+    }
 
     return {
       maxPages: Number.isFinite(maxPages)
         ? PdfParser.clamp(maxPages, 1, Math.max(1, totalPages))
         : Math.max(1, totalPages),
+      pages,
       pageLoadTimeoutMs: Math.max(1, pageLoadTimeoutMs)
     }
   }
@@ -878,7 +900,13 @@ export class PdfParser extends DocumentParser {
     options: Required<EncodeOptions>,
     onProgress?: EncodeProgressReporter
   ): Promise<PageInfo[]> {
-    const total = Math.min(pdf.numPages, options.maxPages)
+    const pageNumbers =
+      Array.isArray(options.pages) && options.pages.length > 0
+        ? options.pages
+        : undefined
+    const total = pageNumbers
+      ? pageNumbers.length
+      : Math.min(pdf.numPages, options.maxPages)
     if (total === 0) {
       return []
     }
@@ -891,8 +919,15 @@ export class PdfParser extends DocumentParser {
     const concurrency = PdfParser.resolvePageScanConcurrency(total)
     const infoList: PageInfo[] = []
 
-    for (let startPage = 1; startPage <= total; startPage += batchSize) {
-      const endPage = Math.min(total, startPage + batchSize - 1)
+    for (let startIndex = 0; startIndex < total; startIndex += batchSize) {
+      const batchPageNumbers = pageNumbers?.slice(
+        startIndex,
+        startIndex + batchSize
+      )
+      const startPage = batchPageNumbers?.[0] ?? startIndex + 1
+      const endPage =
+        batchPageNumbers?.[batchPageNumbers.length - 1] ??
+        Math.min(total, startPage + batchSize - 1)
       const batchSession = await PdfParser.loadPdfSession(data)
 
       try {
@@ -913,7 +948,8 @@ export class PdfParser extends DocumentParser {
                 total
               })
             }
-          }
+          },
+          batchPageNumbers
         )
       } finally {
         await PdfParser.destroyLoadedPdfSession(batchSession)
@@ -930,7 +966,13 @@ export class PdfParser extends DocumentParser {
     onProgress?: EncodeProgressReporter,
     documentData?: ArrayBuffer
   ): Promise<PageInfo[]> {
-    const total = Math.min(pdf.numPages, options.maxPages)
+    const pageNumbers =
+      Array.isArray(options.pages) && options.pages.length > 0
+        ? options.pages
+        : undefined
+    const total = pageNumbers
+      ? pageNumbers.length
+      : Math.min(pdf.numPages, options.maxPages)
     if (total === 0) {
       return []
     }
@@ -954,7 +996,8 @@ export class PdfParser extends DocumentParser {
             total
           })
         }
-      }
+      },
+      pageNumbers
     )
 
     return infoList
@@ -988,12 +1031,19 @@ export class PdfParser extends DocumentParser {
     concurrency: number,
     pageLoadTimeoutMs: number,
     documentData?: ArrayBuffer,
-    onPageReady?: (pageInfo: PageInfo) => Promise<void> | void
+    onPageReady?: (pageInfo: PageInfo) => Promise<void> | void,
+    pageNumbers?: number[]
   ): Promise<PageInfo[]> {
-    const total = endPage - startPage + 1
+    const pagesToFetch =
+      pageNumbers ??
+      Array.from(
+        { length: endPage - startPage + 1 },
+        (_, index) => startPage + index
+      )
+    const total = pagesToFetch.length
     const slots: Array<PageInfo | undefined> = new Array(total).fill(undefined)
-    let nextToEmit = startPage
-    let nextToFetch = startPage
+    let nextToEmit = 0
+    let nextToFetch = 0
     let inFlight = 0
 
     return new Promise((resolve, reject) => {
@@ -1002,6 +1052,7 @@ export class PdfParser extends DocumentParser {
       async function onPageLoaded(
         intermediatePage: IntermediatePage,
         pageNumber: number,
+        slotIndex: number,
         dataPromise: Promise<IntermediatePage>
       ) {
         if (settled) return
@@ -1011,29 +1062,26 @@ export class PdfParser extends DocumentParser {
           y: intermediatePage.height
         }
         const getData = () => dataPromise
-        slots[pageNumber - startPage] = {
+        slots[slotIndex] = {
           id,
           pageNumber,
           size,
           getData
         }
 
-        while (
-          nextToEmit <= endPage &&
-          slots[nextToEmit - startPage] !== undefined
-        ) {
-          const pageInfo = slots[nextToEmit - startPage]
+        while (nextToEmit < total && slots[nextToEmit] !== undefined) {
+          const pageInfo = slots[nextToEmit]
+          nextToEmit++
           if (pageInfo) {
             await onPageReady?.(pageInfo)
           }
-          nextToEmit++
         }
         inFlight--
-        if (nextToEmit > endPage && inFlight === 0) {
+        if (nextToEmit >= total && inFlight === 0) {
           settled = true
           resolve(slots.filter((page): page is PageInfo => page !== undefined))
         } else {
-          if (nextToFetch <= endPage) {
+          if (nextToFetch < total) {
             await PdfParser.encodeYield().catch(() => undefined)
           }
           tryLaunch()
@@ -1041,8 +1089,9 @@ export class PdfParser extends DocumentParser {
       }
 
       function tryLaunch() {
-        while (!settled && inFlight < concurrency && nextToFetch <= endPage) {
-          const pageNumber = nextToFetch++
+        while (!settled && inFlight < concurrency && nextToFetch < total) {
+          const slotIndex = nextToFetch++
+          const pageNumber = pagesToFetch[slotIndex]
           inFlight++
           const dataPromise = PdfParser.buildIntermediatePage(
             pdf,
@@ -1052,7 +1101,9 @@ export class PdfParser extends DocumentParser {
             documentData
           )
           dataPromise
-            .then((page) => onPageLoaded(page, pageNumber, dataPromise))
+            .then((page) =>
+              onPageLoaded(page, pageNumber, slotIndex, dataPromise)
+            )
             .catch((err) => {
               inFlight--
               if (!settled) {
@@ -1556,7 +1607,11 @@ export class PdfParser extends DocumentParser {
     canvas.height = Math.max(1, Math.floor(viewport.height))
     const context = canvas.getContext('2d')
     if (!context) return undefined
-    const renderTask = page.render({ canvas, canvasContext: context, viewport })
+    const renderTask = page.render({
+      canvas,
+      canvasContext: context,
+      viewport
+    })
     await renderTask.promise
     const url = canvas.toDataURL('image/png')
     return url

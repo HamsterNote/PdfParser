@@ -34,6 +34,17 @@
             aria-label="Select a PDF file"
           />
         </div>
+        <div class="page-select-row">
+          <label for="page-number-input">Page Number:</label>
+          <input
+            type="number"
+            id="page-number-input"
+            min="1"
+            placeholder="All pages"
+            aria-label="Page number to encode (leave empty for all pages)"
+          />
+          <span class="page-hint">Leave empty to encode all pages</span>
+        </div>
         <div class="status-row">
           <span
             class="status"
