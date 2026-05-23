@@ -1,0 +1,41 @@
+# Task 2: mapTextDir Test Evidence
+
+## Date: 2026-05-23
+
+## Test Command: yarn test --runTestsByPath src/__tests__/mapTextDir.test.ts
+
+## Result: PASS (exit 0)
+
+## Test Output:
+```
+PASS src/__tests__/mapTextDir.test.ts
+  PdfParser mapTextDir
+    文本方向映射
+      ✓ 应该将 ltr 映射为 TextDir.LTR (2 ms)
+      ✓ 应该将 rtl 映射为 TextDir.RTL
+      ✓ 应该将 ttb 映射为 TextDir.TTB
+      ✓ 应该将 undefined 映射为默认的 TextDir.LTR
+      ✓ 应该将 null 映射为默认的 TextDir.LTR
+      ✓ 应该将空字符串映射为默认的 TextDir.LTR
+      ✓ 应该将任何无效值映射为默认的 TextDir.LTR
+    国际文本方向
+      ✓ 应该正确处理阿拉伯语 RTL 方向
+      ✓ 应该正确处理中文/日文垂直书写方向
+      ✓ 应该正确处理英语 LTR 方向 (1 ms)
+    边界情况
+      ✓ 应该处理大小写混合的输入
+      ✓ 应该处理带空格的输入
+
+Test Suites: 1 passed, 1 total
+Tests:       12 passed, 12 total
+Snapshots:   0 total
+Time:        1.206 s, estimated 2 s
+Ran all test suites within paths "src/__tests__/mapTextDir.test.ts".
+
+Done in 1.64s.
+```
+
+## Verification:
+- Test exits with code 0
+- All 12 tests pass
+- Mock correctly provides TextDir enum needed by test

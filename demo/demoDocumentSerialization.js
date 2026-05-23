@@ -1,9 +1,14 @@
-function buildPageSummary(page, texts) {
+async function buildPageSummary(page) {
+  const content = await resolvePageContent(page)
+  const texts = extractTexts(content)
+  const images = extractImages(content)
+
   return {
     number: page.number,
     width: page.width,
     height: page.height,
     textCount: texts.length,
+    imageCount: images.length,
     previewText: texts.map((text) => {
       return {
         content: text.content,
@@ -14,6 +19,31 @@ function buildPageSummary(page, texts) {
       }
     })
   }
+}
+
+function isIntermediateTextItem(item) {
+  return item !== null && typeof item === 'object' && 'content' in item
+}
+
+function isIntermediateImageItem(item) {
+  return item !== null && typeof item === 'object' && 'src' in item
+}
+
+function extractTexts(content) {
+  return content.filter(isIntermediateTextItem)
+}
+
+function extractImages(content) {
+  return content.filter(isIntermediateImageItem)
+}
+
+async function resolvePageContent(page) {
+  if (typeof page.getContent === 'function') {
+    const content = await page.getContent()
+    return Array.isArray(content) ? content : []
+  }
+
+  return Array.isArray(page.content) ? page.content : []
 }
 
 function getNow() {
@@ -41,7 +71,13 @@ async function resolveCoverAvailable(intermediate, onDiagnostic) {
   }
 
   const cover = await intermediate.getCover(0.25).catch(() => undefined)
-  const available = typeof cover === 'string' && cover.length > 0
+  const available = Boolean(
+    cover &&
+    typeof cover === 'object' &&
+    'src' in cover &&
+    typeof cover.src === 'string' &&
+    cover.src.length > 0
+  )
 
   onDiagnostic?.({
     type: 'cover',
@@ -71,6 +107,7 @@ export function createProgressiveSerializer(intermediate, options = {}) {
       width: size?.x ?? 0,
       height: size?.y ?? 0,
       textCount: 0,
+      imageCount: 0,
       previewText: []
     }
   })
@@ -158,6 +195,7 @@ export function createProgressiveSerializer(intermediate, options = {}) {
             width: 0,
             height: 0,
             textCount: 0,
+            imageCount: 0,
             previewText: []
           }
           onDiagnostic?.({
@@ -168,6 +206,7 @@ export function createProgressiveSerializer(intermediate, options = {}) {
             resolveTextsMs: 0,
             buildSummaryMs: 0,
             textCount: 0,
+            imageCount: 0,
             missing: true
           })
           advanceProgress('serialize:page', {
@@ -178,26 +217,21 @@ export function createProgressiveSerializer(intermediate, options = {}) {
           notifySubscribers()
           continue
         }
-        let texts = []
-        const textsStartedAt = getNow()
-        if (Array.isArray(page.texts)) {
-          texts = page.texts
-        } else if (typeof page.getTexts === 'function') {
-          texts = await page.getTexts()
-        }
-        const textsResolvedAt = getNow()
+        const contentStartedAt = getNow()
         const summaryStartedAt = getNow()
-        const summary = buildPageSummary(page, texts)
+        const summary = await buildPageSummary(page)
         const summaryBuiltAt = getNow()
+        const contentResolvedAt = summaryBuiltAt
         pageSummaryCache[i] = summary
         onDiagnostic?.({
           type: 'page',
           pageNumber: num,
           totalDurationMs: summaryBuiltAt - pageStartedAt,
           resolvePageMs: pageResolvedAt - pageResolvedStartedAt,
-          resolveTextsMs: textsResolvedAt - textsStartedAt,
+          resolveTextsMs: contentResolvedAt - contentStartedAt,
           buildSummaryMs: summaryBuiltAt - summaryStartedAt,
-          textCount: texts.length,
+          textCount: summary.textCount,
+          imageCount: summary.imageCount,
           missing: false
         })
         advanceProgress('serialize:page', {

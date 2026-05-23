@@ -1,0 +1,5 @@
+task-12 extraction warning evidence
+command: npm test -- --runTestsByPath src/__tests__/imageExtraction.test.ts src/__tests__/pdfParserIntegration.test.ts
+result: PASS
+covered warnings: unsupported mask, pattern, Form XObject, repeat image, bitmap image mask, SMask/soft mask
+stable shape: { type: 'unsupported', operator, page, objectId?, message }

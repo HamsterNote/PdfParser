@@ -1,0 +1,13 @@
+Task 7 decode mixed content evidence
+
+- Implemented PdfPagePlan.content: IntermediateContent[] for decode planning.
+- Added resolvePageContent() to load IntermediatePage.content/getContent() and keep renderable IntermediateText/IntermediateImage entries in original array order.
+- Added drawContentToPdfPage() dispatch loop that draws each text or image item sequentially.
+- Added drawImageToPdfPage() for PNG/JPEG data URL embedding via pdf-lib and polygon bounds placement.
+- Added integration scenario: text + image + text mixed content decodes to a non-empty PDF containing /Subtype /Image.
+
+Verification:
+- lsp_diagnostics src/pdfParser.ts: clean
+- lsp_diagnostics src/__tests__/pdfParserIntegration.test.ts: clean
+- yarn test --runTestsByPath src/__tests__/pdfParserIntegration.test.ts: PASS, 44 tests
+- yarn test: PASS, 26 suites, 266 tests

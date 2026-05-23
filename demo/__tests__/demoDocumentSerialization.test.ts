@@ -1,150 +1,84 @@
 import {
   IntermediateDocument,
+  IntermediateImage,
   IntermediatePage,
-  IntermediateText
+  IntermediatePageMap,
+  IntermediateText,
+  TextDir
 } from '@hamster-note/types'
 import {
   createProgressiveSerializer,
-  serializeIntermediate
+  serializeIntermediate,
+  type DemoDocumentSnapshot,
+  type DemoPageSummary,
+  type DemoSerializableDocument
 } from '../demoDocumentSerialization'
 
-function makeDocument({ id, title, pages, outline = [] }) {
-  const entries = pages.map((p) => ({
+function isIntermediateTextItem(item: unknown): item is IntermediateText {
+  return (
+    item instanceof IntermediateText ||
+    (typeof item === 'object' && item !== null && 'content' in item)
+  )
+}
+
+function isIntermediateImageItem(item: unknown): item is IntermediateImage {
+  return (
+    item instanceof IntermediateImage ||
+    (typeof item === 'object' && item !== null && 'src' in item)
+  )
+}
+
+function extractTexts(content: unknown[]): IntermediateText[] {
+  return content.filter(isIntermediateTextItem)
+}
+
+function extractImages(content: unknown[]): IntermediateImage[] {
+  return content.filter(isIntermediateImageItem)
+}
+
+type SourceContentItem =
+  | ConstructorParameters<typeof IntermediateText>[0]
+  | ConstructorParameters<typeof IntermediateImage>[0]
+type SourcePage = {
+  id: string
+  number: number
+  width: number
+  height: number
+  content: SourceContentItem[]
+}
+type SourceDocument = {
+  id: string
+  title: string
+  pages: SourcePage[]
+  outline?: []
+}
+type PageMapEntry = {
+  id: string
+  pageNumber: number
+  size: { x: number; y: number }
+  getData: () => Promise<IntermediatePage>
+}
+
+function makeDocument({ id, title, pages, outline = [] }: SourceDocument) {
+  const entries: PageMapEntry[] = pages.map((p) => ({
     id: p.id,
     pageNumber: p.number,
     size: { x: p.width, y: p.height },
-    loader: async () => {
-      const texts = (p.texts || []).map(
-        (t) =>
-          new IntermediateText({
-            id: t.id,
-            content: t.content,
-            fontSize: t.fontSize ?? 12,
-            fontFamily: t.fontFamily ?? 'Arial',
-            fontWeight: t.fontWeight ?? 400,
-            italic: t.italic ?? false,
-            color: t.color ?? '#000',
-            polygon: t.polygon ?? [
-              [0, 0],
-              [1, 0],
-              [1, 1],
-              [0, 1]
-            ],
-            lineHeight: t.lineHeight ?? 1.2,
-            ascent: t.ascent ?? 0.8,
-            descent: t.descent ?? 0.2,
-            dir: t.dir ?? 'ltr',
-            skew: t.skew ?? 0,
-            isEOL: t.isEOL ?? false
-          })
-      )
+    getData: async () => {
+      const content = (p.content || []).map(createContentItem)
       return new IntermediatePage({
         id: p.id,
         width: p.width,
         height: p.height,
         number: p.number,
-        texts,
+        content,
         paragraphs: [],
-        getTextsFn: async () => texts
+        getContentFn: async () => content
       })
     }
   }))
 
-  const pagesMap = {
-    _entries: entries,
-    get pageCount() {
-      return this._entries.length
-    },
-    get pageNumbers() {
-      return this._entries.map((e) => e.pageNumber).sort((a, b) => a - b)
-    },
-    getPageByPageNumber: function (n) {
-      const e = this._entries.find((e) => e.pageNumber === n)
-      return e ? e.loader() : undefined
-    },
-    getPageSizeByPageNumber: function (n) {
-      const e = this._entries.find((e) => e.pageNumber === n)
-      return e ? e.size : undefined
-    },
-    getPages: async function () {
-      return Promise.all(this._entries.map((e) => e.loader()))
-    }
-  }
-
-  return new IntermediateDocument({
-    id,
-    title,
-    pagesMap,
-    outline
-  })
-}
-
-function _makeDocumentWithDeferredTexts({ id, title, pages, outline = [] }) {
-  const entries = pages.map((p) => {
-    const texts = (p.texts || []).map(
-      (t) =>
-        new IntermediateText({
-          id: t.id,
-          content: t.content,
-          fontSize: t.fontSize ?? 12,
-          fontFamily: t.fontFamily ?? 'Arial',
-          fontWeight: t.fontWeight ?? 400,
-          italic: t.italic ?? false,
-          color: t.color ?? '#000',
-          polygon: t.polygon ?? [
-            [0, 0],
-            [1, 0],
-            [1, 1],
-            [0, 1]
-          ],
-          lineHeight: t.lineHeight ?? 1.2,
-          ascent: t.ascent ?? 0.8,
-          descent: t.descent ?? 0.2,
-          dir: t.dir ?? 'ltr',
-          skew: t.skew ?? 0,
-          isEOL: t.isEOL ?? false
-        })
-    )
-    return {
-      id: p.id,
-      pageNumber: p.number,
-      size: { x: p.width, y: p.height },
-      loader: async () => {
-        const page = new IntermediatePage({
-          id: p.id,
-          width: p.width,
-          height: p.height,
-          number: p.number,
-          texts: [],
-          paragraphs: [],
-          getTextsFn: async () => texts
-        })
-        page.textsLoaded = false
-        return page
-      }
-    }
-  })
-
-  const pagesMap = {
-    _entries: entries,
-    get pageCount() {
-      return this._entries.length
-    },
-    get pageNumbers() {
-      return this._entries.map((e) => e.pageNumber).sort((a, b) => a - b)
-    },
-    getPageByPageNumber: function (n) {
-      const e = this._entries.find((e) => e.pageNumber === n)
-      return e ? e.loader() : undefined
-    },
-    getPageSizeByPageNumber: function (n) {
-      const e = this._entries.find((e) => e.pageNumber === n)
-      return e ? e.size : undefined
-    },
-    getPages: async function () {
-      return Promise.all(this._entries.map((e) => e.loader()))
-    }
-  }
+  const pagesMap = IntermediatePageMap.makeByInfoList(entries)
 
   return new IntermediateDocument({
     id,
@@ -155,7 +89,9 @@ function _makeDocumentWithDeferredTexts({ id, title, pages, outline = [] }) {
 }
 
 let _textIdCounter = 0
-function makeText(content) {
+function makeText(
+  content: string
+): ConstructorParameters<typeof IntermediateText>[0] {
   return {
     id: `text-${++_textIdCounter}`,
     content,
@@ -173,23 +109,47 @@ function makeText(content) {
     lineHeight: 1.2,
     ascent: 0.8,
     descent: 0.2,
-    dir: 'ltr',
+    dir: TextDir.LTR,
     skew: 0,
     isEOL: false
   }
 }
 
-function pageSummaryEquals(a, b) {
+let _imageIdCounter = 0
+function makeImage(): ConstructorParameters<typeof IntermediateImage>[0] {
+  return {
+    id: `image-${++_imageIdCounter}`,
+    src: 'data:image/png;base64,abc123',
+    polygon: [
+      [0, 0],
+      [10, 0],
+      [10, 10],
+      [0, 10]
+    ],
+    opacity: 1
+  }
+}
+
+function createContentItem(item: SourceContentItem) {
+  if ('src' in item) {
+    return new IntermediateImage(item)
+  }
+
+  return new IntermediateText(item)
+}
+
+function pageSummaryEquals(a: DemoPageSummary, b: DemoPageSummary) {
   return (
     a.number === b.number &&
     a.width === b.width &&
     a.height === b.height &&
     a.textCount === b.textCount &&
+    a.imageCount === b.imageCount &&
     JSON.stringify(a.previewText) === JSON.stringify(b.previewText)
   )
 }
 
-function docEquals(a, b) {
+function docEquals(a: DemoDocumentSnapshot, b: DemoDocumentSnapshot) {
   if (
     a.id !== b.id ||
     a.title !== b.title ||
@@ -212,12 +172,17 @@ function docEquals(a, b) {
   return true
 }
 
-function buildExpectedPageSummary(page, texts) {
+function buildExpectedPageSummary(
+  page: IntermediatePage,
+  texts: IntermediateText[],
+  images: IntermediateImage[] = []
+): DemoPageSummary {
   return {
     number: page.number,
     width: page.width,
     height: page.height,
     textCount: texts.length,
+    imageCount: images.length,
     previewText: texts.map((text) => ({
       content: text.content,
       fontSize: text.fontSize,
@@ -228,45 +193,15 @@ function buildExpectedPageSummary(page, texts) {
   }
 }
 
-function findEntryByPageNumber(
-  entries: Array<{
-    pageNumber: number
-    loader: () => Promise<IntermediatePage>
-    size: { x: number; y: number }
-  }>,
-  pageNumber: number
-) {
-  return entries.find((e) => e.pageNumber === pageNumber)
-}
-
 function createPagesMap(pages: IntermediatePage[]) {
-  const entries = pages.map((p) => ({
-    id: p.id,
-    pageNumber: p.number,
-    size: { x: p.width, y: p.height },
-    loader: async () => p
-  }))
-
-  return {
-    _entries: entries,
-    get pageCount() {
-      return entries.length
-    },
-    get pageNumbers() {
-      return entries.map((e) => e.pageNumber).sort((a, b) => a - b)
-    },
-    getPageByPageNumber: function (n) {
-      const e = findEntryByPageNumber(entries, n)
-      return e ? e.loader() : undefined
-    },
-    getPageSizeByPageNumber: function (n) {
-      const e = findEntryByPageNumber(entries, n)
-      return e ? e.size : undefined
-    },
-    getPages: async function () {
-      return pages
-    }
-  }
+  return IntermediatePageMap.makeByInfoList(
+    pages.map((page) => ({
+      id: page.id,
+      pageNumber: page.number,
+      size: { x: page.width, y: page.height },
+      getData: async () => page
+    }))
+  )
 }
 
 function createPagesWithDelayedTexts(
@@ -274,16 +209,15 @@ function createPagesWithDelayedTexts(
   delayMs: number
 ) {
   pages.forEach((page) => {
-    page.textsLoaded = false
-    page.setGetTexts(createDelayedTextGetter(page, delayMs))
+    page.setGetContent(createDelayedContentGetter(page, delayMs))
   })
   return pages
 }
 
-function createDelayedTextGetter(page: IntermediatePage, delayMs: number) {
+function createDelayedContentGetter(page: IntermediatePage, delayMs: number) {
   return async () => {
     await new Promise((r) => setTimeout(r, delayMs))
-    return Array.from(page.texts)
+    return Array.from(page.content)
   }
 }
 
@@ -291,34 +225,8 @@ function waitMs(delayMs: number) {
   return new Promise((resolve) => setTimeout(resolve, delayMs))
 }
 
-function createSimplePagesMap(
-  entries: Array<{
-    id: string
-    pageNumber: number
-    size: { x: number; y: number }
-    loader: () => Promise<IntermediatePage>
-  }>
-) {
-  return {
-    _entries: entries,
-    get pageCount() {
-      return entries.length
-    },
-    get pageNumbers() {
-      return entries.map((e) => e.pageNumber).sort((a, b) => a - b)
-    },
-    getPageByPageNumber: function (n) {
-      const e = entries.find((e) => e.pageNumber === n)
-      return e ? e.loader() : undefined
-    },
-    getPageSizeByPageNumber: function (n) {
-      const e = entries.find((e) => e.pageNumber === n)
-      return e ? e.size : undefined
-    },
-    getPages: async function () {
-      return []
-    }
-  }
+function createSimplePagesMap(entries: PageMapEntry[]) {
+  return IntermediatePageMap.makeByInfoList(entries)
 }
 
 describe('demoDocumentSerialization', () => {
@@ -328,8 +236,8 @@ describe('demoDocumentSerialization', () => {
         id: 'doc-1',
         title: 'Test Doc',
         pages: [
-          { id: 'p1', number: 1, width: 100, height: 200, texts: [] },
-          { id: 'p2', number: 2, width: 100, height: 200, texts: [] }
+          { id: 'p1', number: 1, width: 100, height: 200, content: [] },
+          { id: 'p2', number: 2, width: 100, height: 200, content: [] }
         ]
       })
 
@@ -344,9 +252,11 @@ describe('demoDocumentSerialization', () => {
       expect(shell.pages).toHaveLength(2)
       expect(shell.pages[0].number).toBe(1)
       expect(shell.pages[0].textCount).toBe(0)
+      expect(shell.pages[0].imageCount).toBe(0)
       expect(shell.pages[0].previewText).toEqual([])
       expect(shell.pages[1].number).toBe(2)
       expect(shell.pages[1].textCount).toBe(0)
+      expect(shell.pages[1].imageCount).toBe(0)
       expect(shell.pages[1].previewText).toEqual([])
     })
 
@@ -360,14 +270,14 @@ describe('demoDocumentSerialization', () => {
             number: 1,
             width: 612,
             height: 792,
-            texts: [makeText('Hello'), makeText('World')]
+            content: [makeText('Hello'), makeText('World')]
           },
           {
             id: 'p2',
             number: 2,
             width: 612,
             height: 792,
-            texts: [makeText('Foo'), makeText('Bar'), makeText('Baz')]
+            content: [makeText('Foo'), makeText('Bar'), makeText('Baz')]
           }
         ]
       })
@@ -387,7 +297,7 @@ describe('demoDocumentSerialization', () => {
             width: 100,
             height: 100,
             number: 1,
-            texts: [],
+            content: [],
             paragraphs: []
           }),
           new IntermediatePage({
@@ -395,7 +305,7 @@ describe('demoDocumentSerialization', () => {
             width: 100,
             height: 100,
             number: 2,
-            texts: [],
+            content: [],
             paragraphs: []
           }),
           new IntermediatePage({
@@ -403,7 +313,7 @@ describe('demoDocumentSerialization', () => {
             width: 100,
             height: 100,
             number: 3,
-            texts: [],
+            content: [],
             paragraphs: []
           })
         ],
@@ -443,14 +353,14 @@ describe('demoDocumentSerialization', () => {
             number: 1,
             width: 612,
             height: 792,
-            texts: [makeText('Hello')]
+            content: [makeText('Hello')]
           },
           {
             id: 'p2',
             number: 2,
             width: 612,
             height: 792,
-            texts: [makeText('World')]
+            content: [makeText('World')]
           }
         ]
       })
@@ -498,7 +408,7 @@ describe('demoDocumentSerialization', () => {
         width: 100,
         height: 200,
         number: 1,
-        texts: [],
+        content: [],
         paragraphs: []
       })
 
@@ -511,7 +421,17 @@ describe('demoDocumentSerialization', () => {
         getOutline: () => [],
         getCover: async () => {
           await waitMs(10)
-          return 'data:image/png;base64,abc123'
+          return new IntermediateImage({
+            id: 'cover-thumb',
+            src: 'data:image/png;base64,abc123',
+            polygon: [
+              [0, 0],
+              [100, 0],
+              [100, 200],
+              [0, 200]
+            ],
+            opacity: 1
+          })
         },
         getPageByPageNumber: async () => {
           await waitMs(50)
@@ -541,7 +461,7 @@ describe('demoDocumentSerialization', () => {
             width: 100,
             height: 100,
             number: 1,
-            texts: [],
+            content: [],
             paragraphs: []
           }),
           new IntermediatePage({
@@ -549,7 +469,7 @@ describe('demoDocumentSerialization', () => {
             width: 100,
             height: 100,
             number: 2,
-            texts: [],
+            content: [],
             paragraphs: []
           }),
           new IntermediatePage({
@@ -557,7 +477,7 @@ describe('demoDocumentSerialization', () => {
             width: 100,
             height: 100,
             number: 3,
-            texts: [],
+            content: [],
             paragraphs: []
           })
         ],
@@ -592,7 +512,7 @@ describe('demoDocumentSerialization', () => {
       expect(lastSnapshot).toEqual([1, 2, 3])
     })
 
-    it('re-accessing resolved pages does not re-call getTexts', async () => {
+    it('re-accessing resolved pages does not re-call getContent', async () => {
       const doc = makeDocument({
         id: 'doc-6',
         title: 'Cache Test',
@@ -602,24 +522,24 @@ describe('demoDocumentSerialization', () => {
             number: 1,
             width: 100,
             height: 100,
-            texts: [makeText('Cached')]
+            content: [makeText('Cached')]
           }
         ]
       })
 
       const pages = await doc.pages
-      let getTextsCalls = 0
-      pages[0].getTexts = async () => {
-        getTextsCalls++
-        return pages[0].texts
-      }
+      let getContentCalls = 0
+      pages[0].setGetContent(async () => {
+        getContentCalls++
+        return pages[0].content
+      })
 
       const serializer = createProgressiveSerializer(doc)
       await serializer.resolve()
 
-      const callsBefore = getTextsCalls
+      const callsBefore = getContentCalls
       await serializer.resolve()
-      const callsAfter = getTextsCalls
+      const callsAfter = getContentCalls
 
       expect(callsAfter).toBe(callsBefore)
     })
@@ -634,14 +554,14 @@ describe('demoDocumentSerialization', () => {
             number: 1,
             width: 612,
             height: 792,
-            texts: [makeText('Hello'), makeText('World')]
+            content: [makeText('Hello'), makeText('World')]
           },
           {
             id: 'p2',
             number: 2,
             width: 612,
             height: 792,
-            texts: [makeText('Foo'), makeText('Bar'), makeText('Baz')]
+            content: [makeText('Foo'), makeText('Bar'), makeText('Baz')]
           }
         ]
       })
@@ -651,10 +571,10 @@ describe('demoDocumentSerialization', () => {
 
       const expectedPages = await Promise.all(
         pages.map(async (page) => {
-          const texts = Array.isArray(page.texts)
-            ? page.texts
-            : await page.getTexts()
-          return buildExpectedPageSummary(page, texts)
+          const content = await page.getContent()
+          const texts = extractTexts(content)
+          const images = extractImages(content)
+          return buildExpectedPageSummary(page, texts, images)
         })
       )
 
@@ -673,52 +593,73 @@ describe('demoDocumentSerialization', () => {
       expect(actual).toEqual(expected)
     })
 
+    it('summarizes mixed text and image content without serializing image payloads', async () => {
+      const doc = makeDocument({
+        id: 'doc-mixed-content',
+        title: 'Mixed Content Test',
+        pages: [
+          {
+            id: 'p1',
+            number: 1,
+            width: 612,
+            height: 792,
+            content: [
+              makeText('Hello'),
+              makeImage(),
+              makeText('World'),
+              makeImage()
+            ]
+          }
+        ]
+      })
+
+      const serializer = createProgressiveSerializer(doc)
+      const result = await serializer.resolve()
+      const json = JSON.stringify(result)
+
+      expect(result.pages[0].textCount).toBe(2)
+      expect(result.pages[0].imageCount).toBe(2)
+      expect(result.pages[0].previewText).toHaveLength(2)
+      expect(result.pages[0].previewText.map((text) => text.content)).toEqual([
+        'Hello',
+        'World'
+      ])
+      expect(json).not.toContain('data:image/png;base64,abc123')
+    })
+
     it('handles undefined page from getPageByPageNumber', async () => {
-      const doc = new IntermediateDocument({
+      const doc: DemoSerializableDocument = {
         id: 'doc-8',
         title: 'Undefined Page Test',
-        pagesMap: {
-          _entries: [],
-          get pageCount() {
-            return 1
-          },
-          get pageNumbers() {
-            return [1]
-          },
-          getPageByPageNumber: () => undefined,
-          getPageSizeByPageNumber: () => ({ x: 100, y: 200 }),
-          getPages: async () => []
-        },
-        outline: []
-      })
+        pageCount: 1,
+        pageNumbers: [1],
+        outline: [],
+        getOutline: () => [],
+        getPageByPageNumber: () => undefined,
+        getPageSizeByPageNumber: () => ({ x: 100, y: 200 })
+      }
 
       const serializer = createProgressiveSerializer(doc)
       const result = await serializer.resolve()
 
       expect(result.pages[0].textCount).toBe(0)
+      expect(result.pages[0].imageCount).toBe(0)
       expect(result.pages[0].previewText).toEqual([])
     })
 
     it('rejects when getPageByPageNumber throws', async () => {
-      const doc = new IntermediateDocument({
+      const doc: DemoSerializableDocument = {
         id: 'doc-9',
         title: 'Throws Test',
-        pagesMap: {
-          _entries: [],
-          get pageCount() {
-            return 1
-          },
-          get pageNumbers() {
-            return [1]
-          },
-          getPageByPageNumber: () => {
-            return Promise.reject(new Error('getPageByPageNumber failed'))
-          },
-          getPageSizeByPageNumber: () => ({ x: 100, y: 200 }),
-          getPages: async () => []
+        pageCount: 1,
+        pageNumbers: [1],
+        outline: [],
+        getOutline: () => [],
+        getPageByPageNumber: () => {
+          return Promise.reject(new Error('getPageByPageNumber failed'))
         },
-        outline: []
-      })
+        getPageSizeByPageNumber: () => ({ x: 100, y: 200 })
+      }
 
       const serializer = createProgressiveSerializer(doc)
       await expect(serializer.resolve()).rejects.toThrow(
@@ -732,10 +673,23 @@ describe('demoDocumentSerialization', () => {
         width: 100,
         height: 200,
         number: 1,
-        texts: [],
+        content: [],
         paragraphs: []
       })
-      page.setGetThumbnail(async () => 'data:image/png;base64,abc123')
+      page.setGetThumbnail(
+        async () =>
+          new IntermediateImage({
+            id: 'cover-thumb',
+            src: 'data:image/png;base64,abc123',
+            polygon: [
+              [0, 0],
+              [100, 0],
+              [100, 200],
+              [0, 200]
+            ],
+            opacity: 1
+          })
+      )
 
       const doc = new IntermediateDocument({
         id: 'doc-11',
@@ -745,7 +699,7 @@ describe('demoDocumentSerialization', () => {
             id: 'p1',
             pageNumber: 1,
             size: { x: 100, y: 200 },
-            loader: async () => page
+            getData: async () => page
           }
         ]),
         outline: []

@@ -100,9 +100,10 @@ async function summarizeDocument(document) {
   for (let pageNumber = 1; pageNumber <= document.pageCount; pageNumber += 1) {
     const page = await document.getPageByPageNumber(pageNumber)
     const size = document.getPageSizeByPageNumber(pageNumber)
-    const texts = Array.isArray(page?.texts) ? page.texts : []
+    const content = await page.getContent()
+    const texts = content.filter((item) => 'content' in item)
     const rawText = texts
-      .map((text) => (typeof text?.content === 'string' ? text.content : ''))
+      .map((text) => (typeof text.content === 'string' ? text.content : ''))
       .filter(Boolean)
       .join(' ')
     const normalizedText = normalizeText(rawText)

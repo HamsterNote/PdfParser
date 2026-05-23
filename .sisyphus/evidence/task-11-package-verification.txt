@@ -1,0 +1,23 @@
+yarn run v1.22.22
+$ eslint .
+Done in 10.06s.
+yarn run v1.22.22
+$ rolldown --config rolldown.config.ts && node ./scripts/copyPdfjsWorker.mjs
+<DIR>/node.js.map                       asset │ size:     1.04 kB
+<DIR>/cli/generate.js.map               asset │ size:     4.21 kB
+<DIR>/index.js.map                      asset │ size:     4.76 kB
+<DIR>/ruleSetStore-CyofC9cX.js.map      asset │ size:     9.83 kB
+<DIR>/generationReport-8XbsHU15.js.map  asset │ size:    21.67 kB
+<DIR>/pdfParser-mA2Jq7_i.js.map         asset │ size: 3,488.55 kB
+<DIR>/browser.js                        chunk │ size:     0.08 kB
+<DIR>/node.js                           chunk │ size:     0.72 kB
+<DIR>/cli/generate.js                   chunk │ size:     2.32 kB
+<DIR>/index.js                          chunk │ size:     3.02 kB
+<DIR>/ruleSetStore-CyofC9cX.js          chunk │ size:     4.80 kB
+<DIR>/generationReport-8XbsHU15.js      chunk │ size:    10.78 kB
+<DIR>/pdfParser-mA2Jq7_i.js             chunk │ size: 2,046.65 kB
+
+✔ rolldown v1.0.0-beta.58 Finished in 132.38 ms
+Copied: node_modules/pdfjs-dist/build/pdf.worker.min.mjs -> dist/pdf.worker.min.mjs
+Copied: node_modules/pdfjs-dist/standard_fonts -> dist/standard_fonts
+Done in 0.32s.

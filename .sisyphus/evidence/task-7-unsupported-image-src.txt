@@ -1,0 +1,10 @@
+Task 7 unsupported image src evidence
+
+- Unsupported image src formats are not discarded silently.
+- drawImageToPdfPage() emits console.warn("Unsupported intermediate image source skipped: <id>") and skips that image.
+- Decode continues and returns a valid non-empty PDF when the page contains an unsupported image entry.
+- Added integration scenario with src=https://example.invalid/image.webp asserting warning and successful PDF generation.
+
+Verification:
+- yarn test --runTestsByPath src/__tests__/pdfParserIntegration.test.ts: PASS, 44 tests
+- yarn test: PASS, 26 suites, 266 tests

@@ -1,0 +1,9 @@
+## stale grep
+yarn.lock:regexp-ast-analysis@^0.7.0:
+yarn.lock:    regexp-ast-analysis "^0.7.0"
+
+## native dependency check
+native dependency check: ok
+
+## evidence files tasks 1-12
+all task 1-12 evidence files exist

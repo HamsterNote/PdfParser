@@ -1,0 +1,27 @@
+Scenario 1: Dependency baseline resolves
+Command: yarn install --mode=skip-builds
+Result: exit 0; lockfile saved. Yarn warned package-lock.json exists and @hamster-note/document-parser requested @hamster-note/types@^0.5.1 when resolution forced 0.8.0.
+
+Command: yarn why @hamster-note/types
+Result: exit 0; single resolved package shown:
+yarn why v1.22.22
+[1/4] Why do we have the module "@hamster-note/types"...?
+[2/4] Initialising dependency graph...
+[3/4] Finding dependency...
+[4/4] Calculating file sizes...
+info => Found "@hamster-note/types@0.8.0"
+info Has been hoisted to "@hamster-note/types"
+info Reasons this module exists
+   - Specified in "dependencies"
+   - Hoisted from "@hamster-note#document-parser#@hamster-note#types"
+info Disk size without dependencies: "148KB"
+info Disk size with unique dependencies: "148KB"
+info Disk size with transitive dependencies: "148KB"
+info Number of shared dependencies: 0
+Done in 0.22s.
+
+Command: node -p "require(\x27./package.json\x27).dependencies[\x27@hamster-note/types\x27]"
+0.8.0
+
+Command: node -p "require(\x27./package.json\x27).scripts[\x27check:types\x27]"
+tsc --noEmit

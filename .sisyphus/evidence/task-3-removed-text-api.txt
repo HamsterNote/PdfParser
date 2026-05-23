@@ -1,0 +1,19 @@
+Task 3 removed text API evidence
+Date: 2026-05-23T22:04:50+08:00
+
+Changed files:
+- src/pdfParser.ts
+- src/__tests__/pdfParserIntegration.test.ts
+- demo/__tests__/demoDocumentSerialization.test.ts
+- demo/demoDocumentSerialization.js
+
+Residual active source/test old API search:
+
+$ grep equivalent in src for \.texts\b|getTexts\(|hasLoadedTexts|setGetTexts\(
+No matches found
+
+$ grep equivalent in demo for \.texts\b|getTexts\(|hasLoadedTexts|setGetTexts\(
+No matches found
+
+LSP diagnostics on changed files:
+No diagnostics found for all four changed files.

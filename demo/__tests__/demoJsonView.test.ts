@@ -15,10 +15,11 @@ interface MockJsonviewApi {
 }
 
 interface MockElement {
+  tagName?: string
   children: MockElement[]
   textContent: string
-  replaceChildren: jest.Mock
-  appendChild: jest.Mock
+  replaceChildren: jest.Mock<(...nodes: MockElement[]) => void>
+  appendChild: jest.Mock<(node: MockElement) => void>
   ownerDocument: {
     createElement: jest.Mock<(tag: string) => MockElement>
   }
@@ -53,14 +54,17 @@ function createMockOutputElement(): MockElement {
   const el: MockElement = {
     children: [],
     textContent: '',
-    replaceChildren: jest.fn(function (
+    replaceChildren: jest.fn<(...nodes: MockElement[]) => void>(function (
       this: MockElement,
       ...nodes: MockElement[]
     ) {
       this.children = nodes.filter(Boolean)
       this.textContent = ''
     }),
-    appendChild: jest.fn(function (this: MockElement, node: MockElement) {
+    appendChild: jest.fn<(node: MockElement) => void>(function (
+      this: MockElement,
+      node: MockElement
+    ) {
       this.children.push(node)
     }),
     ownerDocument: {
@@ -68,9 +72,15 @@ function createMockOutputElement(): MockElement {
         (tag: string): MockElement => ({
           tagName: tag,
           children: [],
-          appendChild: jest.fn(function (this: MockElement, node: MockElement) {
+          textContent: '',
+          replaceChildren: jest.fn<(...nodes: MockElement[]) => void>(),
+          appendChild: jest.fn<(node: MockElement) => void>(function (
+            this: MockElement,
+            node: MockElement
+          ) {
             this.children.push(node)
-          })
+          }),
+          ownerDocument: el.ownerDocument
         })
       )
     }

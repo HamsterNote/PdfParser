@@ -1,0 +1,130 @@
+# Task 8: Thumbnail IntermediateImage Alignment - Evidence
+
+## Date: 2026-05-23
+
+## Changes Made
+
+### 1. `renderThumbnail` now returns `IntermediateImage | undefined`
+
+**File:** `src/pdfParser.ts` (line ~2467)
+
+**Before:**
+```typescript
+private static async renderThumbnail(
+  page: PDFPageProxy,
+  scale = 1
+): Promise<string | undefined> {
+  // ... canvas rendering ...
+  const url = canvas.toDataURL('image/png')
+  return url
+}
+```
+
+**After:**
+```typescript
+private static async renderThumbnail(
+  page: PDFPageProxy,
+  scale = 1
+): Promise<IntermediateImage | undefined> {
+  // ... canvas rendering ...
+  return new IntermediateImage({
+    id: `thumbnail-page-${page.pageNumber}`,
+    src: canvas.toDataURL('image/png'),
+    polygon: [
+      [0, 0],
+      [viewport.width, 0],
+      [viewport.width, viewport.height],
+      [0, viewport.height]
+    ],
+    opacity: 1
+  })
+}
+```
+
+### 2. `renderThumbnailFromData` returns `IntermediateImage | undefined`
+
+**File:** `src/pdfParser.ts` (line ~2066)
+
+Return type changed from `Promise<string | undefined>` to `Promise<IntermediateImage | undefined>`
+
+### 3. `resolvePageBackground` extracts `.src` from `IntermediateImage`
+
+**File:** `src/pdfParser.ts` (line ~457)
+
+**Before:**
+```typescript
+private static async resolvePageBackground(
+  page: IntermediatePage
+): Promise<string | undefined> {
+  try {
+    const thumbnail = await page.getThumbnail()
+    return typeof thumbnail === 'string' && thumbnail.trim()
+      ? thumbnail
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+```
+
+**After:**
+```typescript
+private static async resolvePageBackground(
+  page: IntermediatePage
+): Promise<string | undefined> {
+  try {
+    const thumbnail = await page.getThumbnail()
+    if (thumbnail && typeof thumbnail === 'object' && 'src' in thumbnail) {
+      const src = thumbnail.src
+      return typeof src === 'string' && src.trim() ? src : undefined
+    }
+    return undefined
+  } catch {
+    return undefined
+  }
+}
+```
+
+### 4. Demo `resolveCoverAvailable` handles `IntermediateImage`
+
+**File:** `demo/demoDocumentSerialization.js` (line ~51)
+
+**Before:**
+```javascript
+const available = typeof cover === 'string' && cover.length > 0
+```
+
+**After:**
+```javascript
+const available = Boolean(
+  cover &&
+  typeof cover === 'object' &&
+  'src' in cover &&
+  typeof cover.src === 'string' &&
+  cover.src.length > 0
+)
+```
+
+### 5. Tests updated to use `IntermediateImage`
+
+**File:** `demo/__tests__/demoDocumentSerialization.test.ts` (line ~745)
+- Added `IntermediateImage` import
+- Changed `setGetThumbnail` mock to return `IntermediateImage` instead of raw string
+- Changed `getCover` mock to return `IntermediateImage` instead of raw string
+
+**File:** `src/__tests__/pdfParserIntegration.test.ts` (line ~499)
+- Changed `getThumbnailFn` mock to return `IntermediateImage` instead of raw string
+
+## Verification
+
+- All 266 tests pass
+- Integration tests verify thumbnail-to-PDF background writing works with `IntermediateImage`
+- Demo serialization tests verify cover detection works with `IntermediateImage`
+- No code paths expect raw string thumbnails
+
+## Related Files Modified
+
+1. `src/pdfParser.ts` - Core thumbnail rendering and background resolution
+2. `demo/demoDocumentSerialization.js` - Cover availability detection
+3. `demo/__tests__/demoDocumentSerialization.test.ts` - Tests updated for `IntermediateImage`
+4. `src/__tests__/pdfParserIntegration.test.ts` - Integration test updated for `IntermediateImage`

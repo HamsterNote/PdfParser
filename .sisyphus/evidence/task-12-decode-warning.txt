@@ -1,0 +1,6 @@
+task-12 decode warning evidence
+command: npm test -- --runTestsByPath src/__tests__/imageExtraction.test.ts src/__tests__/pdfParserIntegration.test.ts
+result: PASS
+covered warning: unsupported non-data IntermediateImage src is skipped
+stable shape: { type: 'unsupported', operator: 'drawImageToPdfPage', page, objectId, message }
+decode result: valid ArrayBuffer with PDF bytes

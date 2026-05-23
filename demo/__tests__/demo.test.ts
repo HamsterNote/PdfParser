@@ -27,6 +27,21 @@ async function flushTicks(count = 4) {
 }
 
 type Snapshot = { id: string; pages: Array<{ textCount: number }> }
+type DemoDiagnosticsState = {
+  lastEncode: {
+    totals?: Record<string, unknown>
+    pageDiagnostics?: Record<string, unknown>[]
+    coverDiagnostic?: Record<string, unknown>
+  }
+}
+type DemoWindowMock = {
+  __pdfParserDemoDiagnostics?: DemoDiagnosticsState
+  addEventListener: jest.Mock
+}
+type SerializerOptions = {
+  onDiagnostic?: (event: Record<string, unknown>) => void
+  onProgress?: (event: Record<string, unknown>) => void
+}
 
 function createElementMock() {
   const listeners = new Map<string, (event?: unknown) => void>()
@@ -88,14 +103,30 @@ async function setupDemo() {
     ['[data-role="decode-preview-note"]', decodePreviewNoteElement]
   ])
 
-  const renderData = jest.fn()
-  const updateData = jest.fn()
-  const renderMessage = jest.fn()
+  const renderData = jest.fn<(data: unknown) => void>()
+  const updateData = jest.fn<(data: unknown) => void>()
+  const renderMessage = jest.fn<(message: string) => void>()
 
-  const encodeMock = jest.fn()
+  const encodeMock =
+    jest.fn<
+      (
+        buffer?: unknown,
+        options?: unknown,
+        onProgress?: (event: Record<string, unknown>) => void
+      ) => Promise<unknown>
+    >()
   const configureDecodeFontMock = jest.fn()
 
-  const serializerFactoryMock = jest.fn()
+  const serializerFactoryMock = jest.fn<
+    (
+      intermediate?: unknown,
+      options?: SerializerOptions
+    ) => {
+      shell: unknown
+      onUpdate: (callback: (snapshot: Snapshot) => void) => void
+      resolve: () => Promise<unknown>
+    }
+  >()
   const consoleInfo = jest.spyOn(console, 'info').mockImplementation(() => {})
   const consoleTable = jest.spyOn(console, 'table').mockImplementation(() => {})
 
@@ -123,7 +154,7 @@ async function setupDemo() {
   }
 
   ;(globalThis as unknown as { document: unknown }).document = documentMock
-  const windowMock = {
+  const windowMock: DemoWindowMock = {
     __pdfParserDemoDiagnostics: undefined,
     addEventListener: jest.fn()
   }
@@ -200,22 +231,64 @@ describe('demo handleEncode progressive behavior', () => {
       pageNumbers: [1, 2],
       coverAvailable: false,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 0, previewText: [] },
-        { number: 2, width: 100, height: 100, textCount: 0, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 0,
+          imageCount: 0,
+          previewText: []
+        },
+        {
+          number: 2,
+          width: 100,
+          height: 100,
+          textCount: 0,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
     const progressiveSnapshot = {
       ...shell,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 1, previewText: [] },
-        { number: 2, width: 100, height: 100, textCount: 0, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 1,
+          imageCount: 0,
+          previewText: []
+        },
+        {
+          number: 2,
+          width: 100,
+          height: 100,
+          textCount: 0,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
     const finalSnapshot = {
       ...shell,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 1, previewText: [] },
-        { number: 2, width: 100, height: 100, textCount: 2, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 1,
+          imageCount: 0,
+          previewText: []
+        },
+        {
+          number: 2,
+          width: 100,
+          height: 100,
+          textCount: 2,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
 
@@ -238,8 +311,9 @@ describe('demo handleEncode progressive behavior', () => {
       '<strong>Page Count:</strong> 2'
     )
     expect(env.decodeButton.disabled).toBe(true)
-
-    onUpdateHandler?.(progressiveSnapshot)
+    ;(onUpdateHandler as unknown as (snapshot: Snapshot) => void)(
+      progressiveSnapshot
+    )
     expect(env.updateData).toHaveBeenCalledWith(progressiveSnapshot)
 
     resolveDeferred.resolve(finalSnapshot)
@@ -254,7 +328,9 @@ describe('demo handleEncode progressive behavior', () => {
     expect(env.diagnosticsElement.innerHTML).toContain(
       'window.__pdfParserDemoDiagnostics.lastEncode'
     )
-    expect(env.windowMock.__pdfParserDemoDiagnostics.lastEncode.totals).toEqual(
+    expect(
+      env.windowMock.__pdfParserDemoDiagnostics?.lastEncode.totals
+    ).toEqual(
       expect.objectContaining({
         serializerResolveMs: expect.any(Number),
         totalEncodeFlowMs: expect.any(Number)
@@ -274,20 +350,34 @@ describe('demo handleEncode progressive behavior', () => {
       pageNumbers: [1],
       coverAvailable: false,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 0, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 0,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
     const finalSnapshot = {
       ...shell,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 2, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 2,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
 
     env.serializerFactoryMock.mockReturnValue({
       shell,
       onUpdate: jest.fn(),
-      resolve: jest.fn().mockResolvedValue(finalSnapshot)
+      resolve: async () => finalSnapshot
     })
     env.encodeMock.mockResolvedValue({ id: 'intermediate-1' })
 
@@ -322,19 +412,31 @@ describe('demo handleEncode progressive behavior', () => {
       pageNumbers: [1],
       coverAvailable: false,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 0, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 0,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
     const finalSnapshot = {
       ...shell,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 2, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 2,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
 
-    let serializerOptions:
-      | { onDiagnostic?: (event: Record<string, unknown>) => void }
-      | undefined
+    let serializerOptions: SerializerOptions | undefined
     env.serializerFactoryMock.mockImplementation((_, options) => {
       serializerOptions = options
       return {
@@ -360,6 +462,7 @@ describe('demo handleEncode progressive behavior', () => {
       resolveTextsMs: 7,
       buildSummaryMs: 1,
       textCount: 2,
+      imageCount: 1,
       missing: false
     })
     serializerOptions?.onDiagnostic?.({
@@ -371,16 +474,17 @@ describe('demo handleEncode progressive behavior', () => {
     await flushTicks()
 
     expect(
-      env.windowMock.__pdfParserDemoDiagnostics.lastEncode.pageDiagnostics
+      env.windowMock.__pdfParserDemoDiagnostics?.lastEncode.pageDiagnostics
     ).toEqual([
       expect.objectContaining({
         pageNumber: 1,
         resolveTextsMs: 7,
-        textCount: 2
+        textCount: 2,
+        imageCount: 1
       })
     ])
     expect(
-      env.windowMock.__pdfParserDemoDiagnostics.lastEncode.coverDiagnostic
+      env.windowMock.__pdfParserDemoDiagnostics?.lastEncode.coverDiagnostic
     ).toEqual(
       expect.objectContaining({
         available: true,
@@ -405,22 +509,48 @@ describe('demo handleEncode progressive behavior', () => {
       pageNumbers: [1, 2],
       coverAvailable: false,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 0, previewText: [] },
-        { number: 2, width: 100, height: 100, textCount: 0, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 0,
+          imageCount: 0,
+          previewText: []
+        },
+        {
+          number: 2,
+          width: 100,
+          height: 100,
+          textCount: 0,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
     const finalSnapshot = {
       ...shell,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 1, previewText: [] },
-        { number: 2, width: 100, height: 100, textCount: 1, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 1,
+          imageCount: 0,
+          previewText: []
+        },
+        {
+          number: 2,
+          width: 100,
+          height: 100,
+          textCount: 1,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
 
     const resolveDeferred = createDeferred<typeof finalSnapshot>()
-    let serializerOptions:
-      | { onProgress?: (event: Record<string, unknown>) => void }
-      | undefined
+    let serializerOptions: SerializerOptions | undefined
 
     env.serializerFactoryMock.mockImplementation((_, options) => {
       serializerOptions = options
@@ -487,7 +617,14 @@ describe('demo handleEncode progressive behavior', () => {
       pageNumbers: [1],
       coverAvailable: false,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 0, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 0,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
     const newShell = {
@@ -498,7 +635,14 @@ describe('demo handleEncode progressive behavior', () => {
       pageNumbers: [1],
       coverAvailable: false,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 0, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 0,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
 
@@ -532,8 +676,7 @@ describe('demo handleEncode progressive behavior', () => {
     await flushTicks()
     env.encodeButton.trigger('click')
     await flushTicks()
-
-    oldUpdate?.({
+    ;(oldUpdate as unknown as (snapshot: Snapshot) => void)({
       ...oldShell,
       pages: [{ ...oldShell.pages[0], textCount: 1 }]
     })
@@ -544,7 +687,7 @@ describe('demo handleEncode progressive behavior', () => {
     await flushTicks()
 
     const oldUpdateCalls = env.updateData.mock.calls.filter(
-      ([snapshot]) => snapshot.id === 'doc-old'
+      ([snapshot]) => (snapshot as Snapshot).id === 'doc-old'
     )
     expect(oldUpdateCalls).toHaveLength(0)
 
@@ -552,7 +695,7 @@ describe('demo handleEncode progressive behavior', () => {
       ...newShell,
       pages: [{ ...newShell.pages[0], textCount: 3 }]
     }
-    newUpdate?.(finalNew)
+    ;(newUpdate as unknown as (snapshot: Snapshot) => void)(finalNew)
     newDeferred.resolve(finalNew)
     await flushTicks()
 

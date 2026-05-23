@@ -1,0 +1,135 @@
+{
+  "active_plan": "/home/zhangxiao/frontend/worktrees/PdfParser/feature-demo-single-page/.sisyphus/plans/upgrade-hamster-note-types-080.md",
+  "started_at": "2026-05-23T13:40:57.582Z",
+  "session_ids": [
+    "ses_1aaeeb3aaffeY6Eq34FzXA18N9"
+  ],
+  "session_origins": {
+    "ses_1aaeeb3aaffeY6Eq34FzXA18N9": "direct"
+  },
+  "plan_name": "upgrade-hamster-note-types-080",
+  "agent": "atlas",
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Upgrade dependency baseline and verify 0.8.0 contract",
+      "session_id": "ses_1aaecf089ffeMjJsl3UeDjmIaG",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-23T13:47:19.786Z"
+    },
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "Rewrite Jest types mock to exact 0.8.0 surface",
+      "session_id": "ses_1aae636caffeaMw0P8OihGc7Ja",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-23T13:55:44.748Z"
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "Migrate source and tests from text API to content API",
+      "session_id": "ses_1aadf20fdffehS65UdkC1HN0m2",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-23T14:05:08.238Z"
+    },
+    "todo:4": {
+      "task_key": "todo:4",
+      "task_label": "4",
+      "task_title": "Build bounded pdfjs image extraction spike and graphics-state model",
+      "session_id": "ses_1aad51260ffe1MrMJGEuGjrDaw",
+      "agent": "Sisyphus-Junior",
+      "category": "ultrabrain",
+      "updated_at": "2026-05-23T14:31:51.749Z"
+    },
+    "todo:5": {
+      "task_key": "todo:5",
+      "task_label": "5",
+      "task_title": "Implement image data URL conversion policy without native dependencies",
+      "session_id": "ses_1aab854e5ffeBI833ZQmjPEYi9",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-23T14:44:33.283Z"
+    },
+    "todo:6": {
+      "task_key": "todo:6",
+      "task_label": "6",
+      "task_title": "Produce mixed `IntermediatePage.content` during encode",
+      "session_id": "ses_1aab24f10ffeCzqsIT9fGWZPsW",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-23T14:52:28.478Z"
+    },
+    "todo:7": {
+      "task_key": "todo:7",
+      "task_label": "7",
+      "task_title": "Decode mixed content in original order with pdf-lib",
+      "session_id": "ses_1aaab675bffe4tjXaCws1B4tot",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-23T14:58:51.701Z"
+    },
+    "todo:8": {
+      "task_key": "todo:8",
+      "task_label": "8",
+      "task_title": "Align thumbnail and cover semantics with 0.8.0 `IntermediateImage`",
+      "session_id": "ses_1aaa4eef3ffeVruT2cxhQ95Lj3",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-23T15:12:55.577Z"
+    },
+    "todo:9": {
+      "task_key": "todo:9",
+      "task_label": "9",
+      "task_title": "Update demo progressive serialization for content and image summaries",
+      "session_id": "ses_1aa975d04ffeUwVw9vSNxHb7o3",
+      "agent": "general",
+      "updated_at": "2026-05-23T15:21:26.701Z"
+    },
+    "todo:10": {
+      "task_key": "todo:10",
+      "task_label": "10",
+      "task_title": "Expand fixtures and tests for image/content edge cases",
+      "session_id": "ses_1aa920761ffeumdl0byE7BLcfI",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-23T15:28:46.687Z"
+    },
+    "todo:11": {
+      "task_key": "todo:11",
+      "task_label": "11",
+      "task_title": "Integrate verification scripts and package-level checks",
+      "session_id": "ses_1aa85df84ffee6mrPPXyCNKgnN",
+      "agent": "general",
+      "updated_at": "2026-05-23T15:47:42.372Z"
+    },
+    "todo:12": {
+      "task_key": "todo:12",
+      "task_label": "12",
+      "task_title": "Harden unsupported image construct fallback behavior",
+      "session_id": "ses_1aa78c911ffeeFnkDvPXelpZa0",
+      "agent": "general",
+      "updated_at": "2026-05-23T15:56:44.167Z"
+    },
+    "todo:13": {
+      "task_key": "todo:13",
+      "task_label": "13",
+      "task_title": "Final migration sweep and evidence consolidation",
+      "session_id": "ses_1aa7043a7ffedyfSX62tyW4mVP",
+      "agent": "general",
+      "updated_at": "2026-05-23T16:03:29.127Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "Plan Compliance Audit — oracle",
+      "session_id": "ses_1aa59686affeK7oLdV9kLT9l0r",
+      "agent": "oracle",
+      "updated_at": "2026-05-23T16:26:12.926Z"
+    }
+  }
+}

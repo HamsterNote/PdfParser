@@ -1,0 +1,15 @@
+yarn run v1.22.22
+$ NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.js --runTestsByPath demo/__tests__/demoDocumentSerialization.test.ts demo/__tests__/demo.test.ts
+(node:3695519) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS demo/__tests__/demoDocumentSerialization.test.ts
+(node:3695518) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS demo/__tests__/demo.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       18 passed, 18 total
+Snapshots:   0 total
+Time:        2.338 s
+Ran all test suites within paths "demo/__tests__/demoDocumentSerialization.test.ts", "demo/__tests__/demo.test.ts".
+Done in 2.79s.

@@ -1,0 +1,12 @@
+Command: yarn test --runTestsByPath src/__tests__/imageExtraction.test.ts
+Result: PASS
+
+Covered test:
+- extractImagesFromPage resolves paintImageXObject data and polygon in operator order
+
+Assertions:
+- getOperatorList() walked [save, transform, paintImageXObject, restore] in order.
+- CTM transform [20, 0, 0, 10, 5, 7] produced polygon [[5, 7], [25, 7], [25, 17], [5, 17]].
+- page.objs.get('img1', callback) resolved raw image data.
+- rawImageData is normalized to Uint8Array with width=2, height=1, kind=3.
+- src remains undefined for Task 5 and warnings is empty.

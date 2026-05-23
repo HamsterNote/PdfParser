@@ -274,7 +274,7 @@ const renderEncodeDiagnostics = (diagnostics) => {
 
   let bottleneck = 'Waiting for serializer completion dominated.'
   if (slowestPage && Number.isFinite(slowestPage.resolveTextsMs)) {
-    bottleneck = `Slowest page: ${slowestPage.pageNumber} (${formatMetricValue(slowestPage.totalDurationMs)} total, ${formatMetricValue(slowestPage.resolveTextsMs)} in text resolution).`
+    bottleneck = `Slowest page: ${slowestPage.pageNumber} (${formatMetricValue(slowestPage.totalDurationMs)} total, ${formatMetricValue(slowestPage.resolveTextsMs)} in content resolution).`
   } else if (Number.isFinite(diagnostics.coverDiagnostic?.durationMs)) {
     bottleneck = `Cover work took ${formatMetricValue(diagnostics.coverDiagnostic.durationMs)}.`
   }
@@ -288,7 +288,7 @@ const renderEncodeDiagnostics = (diagnostics) => {
     <p><strong>Cover:</strong> ${escapeHtml(coverSummary)}</p>
     <ul class="diagnostics-list">
       <li>Inspect raw data in <code>window.__pdfParserDemoDiagnostics.lastEncode</code>.</li>
-      <li>Use <code>pageDiagnostics</code> to compare per-page text resolution cost.</li>
+      <li>Use <code>pageDiagnostics</code> to compare per-page content resolution cost.</li>
     </ul>
   `)
 }
@@ -731,6 +731,7 @@ const handleEncode = async () => {
             resolveTextsMs: roundMs(event.resolveTextsMs),
             buildSummaryMs: roundMs(event.buildSummaryMs),
             textCount: event.textCount,
+            imageCount: event.imageCount,
             missing: event.missing
           })
           return
