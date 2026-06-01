@@ -86,6 +86,10 @@ type DecodeFontSet = {
  * 允许在 decode 阶段覆盖 IntermediateText 渲染属性的子集。
  * 仅包含可渲染属性；排版元数据（fontFamily、fontWeight、italic 等）不在此处，
  * 因为它们在 PDF 输出路径中没有对应语义。
+ *
+ * 注意：color 字段当前仅支持 6 位十六进制格式（如 #RRGGBB），
+ * 不支持 #RGB、#RRGGBBAA、命名颜色或 rgb() 函数格式。
+ * 不支持的格式会被静默忽略（视为未设置颜色）。
  */
 export type DecodeTextOverride = Partial<
   Pick<
@@ -499,24 +503,57 @@ export class PdfParser extends DocumentParser {
     }
   }
 
+  /**
+   * 检查内容项是否为可渲染的文本或图像。
+   *
+   * 使用鸭子类型（duck typing）进行判断：
+   * - IntermediateText 实例或包含 'content' 属性的对象被视为文本
+   * - IntermediateImage 实例或包含 'src' 属性的对象被视为图像
+   *
+   * 安全处理 null、undefined 和原始类型（返回 false）。
+   */
   private static isRenderableContent(
     item: IntermediateContent
-  ): item is IntermediateContent {
+  ): item is IntermediateText | IntermediateImage {
     return (
       PdfParser.isIntermediateText(item) || PdfParser.isIntermediateImage(item)
     )
   }
 
+  /**
+   * 检查内容项是否为 IntermediateText。
+   *
+   * 判断逻辑：
+   * 1. 如果是 IntermediateText 实例 → true
+   * 2. 如果是对象且包含 'content' 属性 → true（鸭子类型）
+   *
+   * 安全处理 null、undefined 和原始类型（返回 false）。
+   */
   private static isIntermediateText(
     item: IntermediateContent
   ): item is IntermediateText {
-    return item instanceof IntermediateText || 'content' in item
+    return (
+      item instanceof IntermediateText ||
+      (typeof item === 'object' && item !== null && 'content' in item)
+    )
   }
 
+  /**
+   * 检查内容项是否为 IntermediateImage。
+   *
+   * 判断逻辑：
+   * 1. 如果是 IntermediateImage 实例 → true
+   * 2. 如果是对象且包含 'src' 属性 → true（鸭子类型）
+   *
+   * 安全处理 null、undefined 和原始类型（返回 false）。
+   */
   private static isIntermediateImage(
     item: IntermediateContent
   ): item is IntermediateImage {
-    return item instanceof IntermediateImage || 'src' in item
+    return (
+      item instanceof IntermediateImage ||
+      (typeof item === 'object' && item !== null && 'src' in item)
+    )
   }
 
   private static async resolvePageBackground(
