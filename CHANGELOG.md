@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-06-01
+
+### Added
+- 新增 `EncodeOptions.pages` 选项，支持从 PDF 中编码指定页面
+- 新增 `DecodeTextOverride` 类型，允许在 decode 阶段覆盖文本渲染属性（content、fontSize、lineHeight、opacity、color、polygon、ascent、descent、skew）
+- 新增图片提取管线，支持从 PDF 页面中提取图片并转换为 PNG data URL
+- 新增 `ImageUnsupportedWarning`、`RawImageData` 等图片相关类型导出
+- 新增 `parseRenderableTextColor`、`isRenderableContent`、`isIntermediateText`、`isIntermediateImage` 等类型的单元测试
+
+### Changed
+- 升级 `@hamster-note/types` 依赖至 0.8.0
+- 改进类型守卫（`isIntermediateText`、`isIntermediateImage`）的空值安全性，增加 null/undefined 检查
+- 增强 `RenderableText` 类型，支持颜色、透明度和倾斜属性
+- 重构 `PdfPagePlan` 为基于内容的渲染模式
+
 ## [0.6.0] - 2026-05-13
 
 ### Added
