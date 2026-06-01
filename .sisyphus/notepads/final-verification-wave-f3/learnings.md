@@ -1,1 +1,0 @@
-- 2026-05-24 F3 QA: yarn build:all passed; targeted demo tests passed (18/18); npm pack --dry-run passed; package import from dist succeeded; static demo resources returned HTTP 200. Browser runtime console verification blocked because Chrome/Chromium is not installed for Playwright.

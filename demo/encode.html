@@ -73,6 +73,31 @@
             <span>JSON Output</span>
           </label>
         </div>
+        <div class="json-override-row">
+          <label for="decode-text-override">Decode Text Override (JSON)</label>
+          <textarea
+            id="decode-text-override"
+            rows="4"
+            placeholder='{ "content": "Demo Override", "fontSize": 24, "opacity": 0.5, "color": "#ff0000" }'
+            aria-describedby="decode-text-help"
+            aria-errormessage="decode-text-error"
+          ></textarea>
+          <p id="decode-text-help" class="help-text">
+            Supported fields:
+            <code>content</code>, <code>fontSize</code>, <code>lineHeight</code>,
+            <code>opacity</code>, <code>color</code>, <code>polygon</code>,
+            <code>ascent</code>, <code>descent</code>, <code>skew</code>.
+            <code>transparent</code> means "no explicit PDF color override"
+            (not invisible text).
+          </p>
+          <div
+            id="decode-text-error"
+            class="error-message"
+            role="alert"
+            aria-live="assertive"
+            aria-atomic="true"
+          ></div>
+        </div>
       </section>
 
       <section class="card" data-role="summary">

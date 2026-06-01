@@ -89,6 +89,8 @@ const decodePreviewElement = document.querySelector(
 const decodePreviewNoteElement = document.querySelector(
   '[data-role="decode-preview-note"]'
 )
+const decodeTextOverrideInput = document.getElementById('decode-text-override')
+const decodeTextErrorElement = document.getElementById('decode-text-error')
 
 let currentFile = null
 let currentIntermediateDocument = null
@@ -191,6 +193,104 @@ const setDecodePreviewNote = (text, isError = false) => {
   if (!decodePreviewNoteElement) return
   decodePreviewNoteElement.textContent = text
   decodePreviewNoteElement.classList.toggle('is-error', isError)
+}
+
+const setDecodeTextError = (text) => {
+  if (decodeTextErrorElement) {
+    decodeTextErrorElement.textContent = text
+  }
+
+  if (decodeTextOverrideInput) {
+    decodeTextOverrideInput.setAttribute('aria-invalid', 'true')
+  }
+}
+
+const clearDecodeTextError = () => {
+  if (decodeTextErrorElement) {
+    decodeTextErrorElement.textContent = ''
+  }
+
+  if (decodeTextOverrideInput) {
+    decodeTextOverrideInput.setAttribute('aria-invalid', 'false')
+  }
+}
+
+const ALLOWED_DECODE_TEXT_OVERRIDE_KEYS = new Set([
+  'content',
+  'fontSize',
+  'lineHeight',
+  'opacity',
+  'color',
+  'polygon',
+  'ascent',
+  'descent',
+  'skew'
+])
+
+const isValidHexColor = (value) => {
+  if (typeof value !== 'string') return false
+  return /^#[0-9a-fA-F]{6}$/.test(value)
+}
+
+const isFiniteNumber = (value) => {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+const isNumberArray = (value) => {
+  return Array.isArray(value) && value.every((entry) => isFiniteNumber(entry))
+}
+
+const getDecodeTextOverrideValidationError = (parsed, keys) => {
+  const unknownKey = keys.find(
+    (key) => !ALLOWED_DECODE_TEXT_OVERRIDE_KEYS.has(key)
+  )
+  if (unknownKey) return `Unknown field: "${unknownKey}".`
+
+  if (
+    'color' in parsed &&
+    parsed.color !== 'transparent' &&
+    !isValidHexColor(parsed.color)
+  ) {
+    return 'Invalid color. Use "#RRGGBB" or "transparent".'
+  }
+
+  const invalidNumberField = [
+    'fontSize',
+    'lineHeight',
+    'opacity',
+    'ascent',
+    'descent',
+    'skew'
+  ].find((field) => field in parsed && !isFiniteNumber(parsed[field]))
+  if (invalidNumberField) return `${invalidNumberField} must be a number.`
+
+  if ('polygon' in parsed && !isNumberArray(parsed.polygon)) {
+    return 'polygon must be an array of numbers.'
+  }
+
+  return null
+}
+
+const validateDecodeTextOverride = (raw) => {
+  let parsed
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return { valid: false, error: 'Invalid JSON syntax.' }
+  }
+
+  if (parsed === null || Array.isArray(parsed) || typeof parsed !== 'object') {
+    return {
+      valid: false,
+      error: 'JSON must be an object (not an array or primitive).'
+    }
+  }
+
+  const keys = Object.keys(parsed)
+  const validationError = getDecodeTextOverrideValidationError(parsed, keys)
+  if (validationError) return { valid: false, error: validationError }
+
+  return { valid: true, value: parsed }
 }
 
 const setSummary = (html) => {
@@ -558,6 +658,7 @@ const renderSummary = (serialized, singlePageNumber) => {
 const handleLoadSample = async () => {
   setStatus('Loading sample...')
   setError('')
+  clearDecodeTextError()
   renderDiagnosticsPlaceholder(
     'Loading a sample clears the previous encode diagnostics.'
   )
@@ -598,6 +699,7 @@ const handleFileSelect = (event) => {
   }
 
   setError('')
+  clearDecodeTextError()
   renderDiagnosticsPlaceholder(
     'Selecting a file clears the previous encode diagnostics.'
   )
@@ -631,6 +733,7 @@ const handleEncode = async () => {
     return
   }
 
+  clearDecodeTextError()
   const encodeContextId = activeDecodeContextId + 1
   activeDecodeContextId = encodeContextId
   revokeDecodePreviewUrl()
@@ -849,6 +952,34 @@ const handleDecode = async () => {
     return
   }
 
+  const rawOverride = decodeTextOverrideInput?.value ?? ''
+  const trimmedOverride = rawOverride.trim()
+  let decodeOptions = {}
+
+  if (trimmedOverride !== '') {
+    const validation = validateDecodeTextOverride(trimmedOverride)
+    if (!validation.valid) {
+      setDecodeTextError(validation.error)
+      revokeDecodePreviewUrl()
+      setDecodeButtonEnabled(true)
+      setDecodeState({
+        name: 'idle',
+        statusText: 'Invalid JSON override. Fix the error below and try again.',
+        previewMessage:
+          'Decode preview cleared because the JSON override is invalid.',
+        note: validation.error,
+        isError: true
+      })
+      return
+    }
+    clearDecodeTextError()
+    if (validation.value !== undefined) {
+      decodeOptions = { text: validation.value }
+    }
+  } else {
+    clearDecodeTextError()
+  }
+
   const decodeContextId = activeDecodeContextId
   const intermediateDocument = currentIntermediateDocument
 
@@ -867,7 +998,7 @@ const handleDecode = async () => {
     await decodeFontSetupPromise
     const decoded = await PdfParser.decode(
       intermediateDocument,
-      {},
+      decodeOptions,
       (event) => {
         if (
           decodeContextId !== activeDecodeContextId ||

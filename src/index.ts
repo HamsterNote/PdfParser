@@ -6,6 +6,7 @@ export { PdfParser } from './pdfParser'
 export type {
   EncodeOptions,
   DecodeOptions,
+  DecodeTextOverride,
   DecodeProgressEvent,
   DecodeProgressReporter,
   EncodeProgressEvent,

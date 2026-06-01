@@ -1,3 +1,7 @@
+import { PdfParser } from '@PdfParser'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   IntermediateDocument,
   IntermediateImage,
@@ -7,10 +11,12 @@ import {
   TextDir
 } from '@hamster-note/types'
 import { beforeAll, describe, expect, it, jest } from '@jest/globals'
-import { PdfParser } from '@PdfParser'
-import { readFile } from 'node:fs/promises'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import {
+  decodePDFRawStream,
+  PDFArray,
+  PDFRawStream,
+  PDFDocument as PdfLibDocument
+} from 'pdf-lib'
 import { OPS } from 'pdfjs-dist'
 import type { PDFPageProxy } from 'pdfjs-dist/types/src/display/api'
 
@@ -215,6 +221,137 @@ function createStructuredDocumentWithPage(
       }
     ])
   })
+}
+
+async function snapshotStructuredDocument(document: IntermediateDocument) {
+  const pages: Array<{
+    id: string
+    number: number
+    width: number
+    height: number
+    content: Array<Record<string, unknown>>
+  }> = []
+
+  for (const pageNumber of document.pageNumbers) {
+    const page = await document.getPageByPageNumber(pageNumber)
+    const content = (await page?.getContent()) ?? []
+
+    pages.push({
+      id: page?.id ?? `page-${pageNumber}`,
+      number: page?.number ?? pageNumber,
+      width: page?.width ?? 0,
+      height: page?.height ?? 0,
+      content: content.map((item) => {
+        if (item instanceof IntermediateText) {
+          return {
+            kind: 'text',
+            id: item.id,
+            content: item.content,
+            fontSize: item.fontSize,
+            lineHeight: item.lineHeight,
+            opacity: item.opacity,
+            color: item.color,
+            polygon: item.polygon.map(([x, y]) => [x, y]),
+            ascent: item.ascent,
+            descent: item.descent,
+            skew: item.skew
+          }
+        }
+
+        if (item instanceof IntermediateImage) {
+          return {
+            kind: 'image',
+            id: item.id,
+            src: item.src,
+            opacity: item.opacity,
+            polygon: item.polygon.map(([x, y]) => [x, y])
+          }
+        }
+
+        return {
+          kind: 'unknown'
+        }
+      })
+    })
+  }
+
+  return {
+    id: document.id,
+    title: document.title,
+    pageCount: document.pageCount,
+    pageNumbers: [...document.pageNumbers],
+    pages
+  }
+}
+
+async function snapshotDecodedTextLayout(buffer: ArrayBuffer) {
+  const reparsed = await PdfParser.encode(buffer)
+  if (!reparsed) {
+    return undefined
+  }
+
+  const pages: Array<{
+    pageNumber: number
+    size: { x: number; y: number }
+    texts: Array<{
+      content: string
+      fontSize: number
+      lineHeight: number
+      opacity: number
+    }>
+  }> = []
+
+  for (const pageNumber of reparsed.pageNumbers) {
+    const page = await reparsed.getPageByPageNumber(pageNumber)
+    const texts = getPageTexts(page)
+
+    pages.push({
+      pageNumber,
+      size: { x: page?.width ?? 0, y: page?.height ?? 0 },
+      texts: texts.map((text) => ({
+        content: text.content,
+        fontSize: text.fontSize,
+        lineHeight: text.lineHeight,
+        opacity: text.opacity
+      }))
+    })
+  }
+
+  return {
+    pageCount: reparsed.pageCount,
+    pages
+  }
+}
+
+async function getDecodedPageContentStreamText(buffer: ArrayBuffer) {
+  const pdfDocument = await PdfLibDocument.load(buffer)
+  const page = pdfDocument.getPages()[0]
+  const contents = page?.node.Contents()
+
+  if (!contents) {
+    return ''
+  }
+
+  const decodeRawStream = (stream: PDFRawStream) =>
+    Buffer.from(decodePDFRawStream(stream).decode()).toString('latin1')
+
+  if (contents instanceof PDFRawStream) {
+    return decodeRawStream(contents)
+  }
+
+  if (contents instanceof PDFArray) {
+    const decodedStreams: string[] = []
+    for (let index = 0; index < contents.size(); index++) {
+      const stream = contents.lookupMaybe(index, PDFRawStream)
+      if (stream) {
+        decodedStreams.push(decodeRawStream(stream))
+      }
+    }
+
+    return decodedStreams.join('\n')
+  }
+
+  return contents.getContentsString()
 }
 
 const PNG_DATA_URL =
@@ -533,6 +670,322 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
 
       expect(decoded).toBeInstanceOf(ArrayBuffer)
       expect((decoded as ArrayBuffer).byteLength).toBeGreaterThan(0)
+    })
+
+    it('text override 应全局合并且保留原始文本字段', async () => {
+      const structuredDocument = createStructuredDocument([
+        createRenderableText({
+          id: 'text-a',
+          content: 'Alpha',
+          fontSize: 12,
+          lineHeight: 18,
+          opacity: 0.25,
+          polygon: createPolygon(20, 36, 72, 12)
+        }),
+        createRenderableText({
+          id: 'text-b',
+          content: 'Beta',
+          fontSize: 14,
+          lineHeight: 22,
+          opacity: 0.75,
+          polygon: createPolygon(20, 72, 64, 14)
+        })
+      ])
+      const textOverride = { fontSize: 24 }
+      const parserStatics = PdfParser as unknown as {
+        applyTextOverride: (
+          text: IntermediateText,
+          override: typeof textOverride | undefined
+        ) => IntermediateText
+      }
+      const originalApplyTextOverride =
+        parserStatics.applyTextOverride.bind(PdfParser)
+      const appliedTexts: IntermediateText[] = []
+      const applyTextOverrideSpy = jest
+        .spyOn(parserStatics, 'applyTextOverride')
+        .mockImplementation((text, override) => {
+          const resolvedText = originalApplyTextOverride(text, override)
+          appliedTexts.push(resolvedText)
+          return resolvedText
+        })
+
+      let decoded: Awaited<ReturnType<typeof PdfParser.decode>> | undefined
+      try {
+        decoded = await PdfParser.decode(structuredDocument, {
+          text: textOverride
+        })
+      } finally {
+        applyTextOverrideSpy.mockRestore()
+      }
+
+      expect(decoded).toBeInstanceOf(ArrayBuffer)
+      expect(appliedTexts).toHaveLength(2)
+      expect(
+        appliedTexts.map((text) => ({
+          content: text.content,
+          fontSize: text.fontSize,
+          lineHeight: text.lineHeight,
+          opacity: text.opacity
+        }))
+      ).toEqual([
+        {
+          content: 'Alpha',
+          fontSize: 24,
+          lineHeight: 18,
+          opacity: 0.25
+        },
+        {
+          content: 'Beta',
+          fontSize: 24,
+          lineHeight: 22,
+          opacity: 0.75
+        }
+      ])
+
+      const layout = await snapshotDecodedTextLayout(decoded as ArrayBuffer)
+      expect(layout).toBeDefined()
+      expect(layout?.pageCount).toBe(1)
+
+      const renderedTexts = layout?.pages.flatMap((page) => page.texts) ?? []
+      expect(renderedTexts.length).toBeGreaterThan(0)
+
+      const renderedContent = renderedTexts.map((text) => text.content).join('')
+      expect(renderedContent).toContain('Alpha')
+      expect(renderedContent).toContain('Beta')
+      expect(textOverride).toEqual({ fontSize: 24 })
+    })
+
+    it('color override 应改变生成的 PDF 内容流', async () => {
+      const structuredDocument = createStructuredDocument([
+        createRenderableText({
+          id: 'color-text',
+          content: 'Color check',
+          polygon: createPolygon(24, 52, 112, 16)
+        })
+      ])
+
+      const baselineDecoded = (await PdfParser.decode(
+        structuredDocument
+      )) as ArrayBuffer
+      const coloredDecoded = (await PdfParser.decode(structuredDocument, {
+        text: { color: '#ff0000' }
+      })) as ArrayBuffer
+
+      const baselineContentStream =
+        await getDecodedPageContentStreamText(baselineDecoded)
+      const coloredContentStream =
+        await getDecodedPageContentStreamText(coloredDecoded)
+
+      expect(coloredContentStream).toContain('1 0 0 rg')
+      expect(baselineContentStream).not.toContain('1 0 0 rg')
+      expect(coloredContentStream).not.toEqual(baselineContentStream)
+    })
+
+    it('skew override 应映射到 pdf-lib 绘制选项且不抛错', async () => {
+      const structuredDocument = createStructuredDocument([
+        createRenderableText({
+          id: 'skew-text',
+          content: 'Skew check',
+          polygon: createPolygon(24, 84, 120, 16)
+        })
+      ])
+
+      const decoded = await PdfParser.decode(structuredDocument, {
+        text: { skew: 12 }
+      })
+
+      expect(decoded).toBeInstanceOf(ArrayBuffer)
+      expect((decoded as ArrayBuffer).byteLength).toBeGreaterThan(0)
+    })
+
+    it('polygon/ascent/descent override 应参与文本合并和绘制度量', async () => {
+      const structuredDocument = createStructuredDocument([
+        createRenderableText({
+          id: 'metric-text',
+          content: 'Metric check',
+          polygon: createPolygon(24, 40, 96, 16),
+          ascent: 0.8,
+          descent: -0.2
+        })
+      ])
+      const textOverride = {
+        polygon: createPolygon(48, 96, 104, 24),
+        ascent: 0.6,
+        descent: -0.4
+      }
+      const parserStatics = PdfParser as unknown as {
+        applyTextOverride: (
+          text: IntermediateText,
+          override: typeof textOverride | undefined
+        ) => IntermediateText
+      }
+      const originalApplyTextOverride =
+        parserStatics.applyTextOverride.bind(PdfParser)
+      const appliedTexts: IntermediateText[] = []
+      const applyTextOverrideSpy = jest
+        .spyOn(parserStatics, 'applyTextOverride')
+        .mockImplementation((text, override) => {
+          const resolvedText = originalApplyTextOverride(text, override)
+          appliedTexts.push(resolvedText)
+          return resolvedText
+        })
+
+      let decoded: Awaited<ReturnType<typeof PdfParser.decode>> | undefined
+      try {
+        decoded = await PdfParser.decode(structuredDocument, {
+          text: textOverride
+        })
+      } finally {
+        applyTextOverrideSpy.mockRestore()
+      }
+
+      expect(decoded).toBeInstanceOf(ArrayBuffer)
+      expect((decoded as ArrayBuffer).byteLength).toBeGreaterThan(0)
+      expect(appliedTexts).toHaveLength(1)
+      expect(appliedTexts[0]).toMatchObject({
+        polygon: textOverride.polygon,
+        ascent: textOverride.ascent,
+        descent: textOverride.descent
+      })
+      expect(textOverride).toEqual({
+        polygon: createPolygon(48, 96, 104, 24),
+        ascent: 0.6,
+        descent: -0.4
+      })
+    })
+
+    it('text override 存在时，非法文档仍应返回 undefined', async () => {
+      const invalidDocument = createStructuredDocument([
+        createRenderableText({
+          lineHeight: 0
+        })
+      ])
+
+      const decoded = await PdfParser.decode(invalidDocument, {
+        text: { content: 'override still invalid' }
+      })
+
+      expect(decoded).toBeUndefined()
+    })
+
+    it('{ fonts, text } 组合应同时保留字体行为和进度回调', async () => {
+      const structuredDocument = createStructuredDocument([
+        createRenderableText({
+          content: '组合字体文本',
+          polygon: createPolygon(20, 44, 120, 16)
+        })
+      ])
+      const reporter = jest.fn()
+
+      const decoded = await PdfParser.decode(
+        structuredDocument,
+        {
+          fonts: { data: cjkFontBuffer },
+          text: {
+            content: '组合字体文本',
+            fontSize: 20,
+            lineHeight: 24
+          }
+        },
+        reporter
+      )
+
+      expect(decoded).toBeInstanceOf(ArrayBuffer)
+      expect(reporter).toHaveBeenCalled()
+
+      const reparsed = await PdfParser.encode(decoded as ArrayBuffer)
+      const reparsedPage = await reparsed?.getPageByPageNumber(1)
+      const reparsedText = getPageTexts(reparsedPage)
+        .map((text) => text.content)
+        .join('')
+
+      expect(reparsedText).toContain('组合字体文本')
+    })
+
+    it('decode 前后输入文档快照应保持不变', async () => {
+      const structuredDocument = createStructuredDocument([
+        createRenderableText({
+          id: 'snapshot-text',
+          content: 'Snapshot',
+          fontSize: 15,
+          lineHeight: 21,
+          opacity: 0.55,
+          polygon: createPolygon(18, 48, 88, 15)
+        })
+      ])
+      const before = await snapshotStructuredDocument(structuredDocument)
+      const textOverride = { content: '', fontSize: 20, opacity: undefined }
+
+      const decoded = await PdfParser.decode(structuredDocument, {
+        text: textOverride
+      })
+
+      expect(decoded).toBeInstanceOf(ArrayBuffer)
+      expect(await snapshotStructuredDocument(structuredDocument)).toEqual(
+        before
+      )
+      expect(textOverride).toEqual({
+        content: '',
+        fontSize: 20,
+        opacity: undefined
+      })
+    })
+
+    it('text: undefined 应与不传 text 保持一致', async () => {
+      const structuredDocument = createStructuredDocument([
+        createRenderableText({
+          id: 'undefined-text',
+          content: 'Undefined option',
+          polygon: createPolygon(24, 48, 108, 16)
+        })
+      ])
+      const reporter = jest.fn()
+
+      const baselineDecoded = await PdfParser.decode(structuredDocument)
+      const undefinedDecoded = await PdfParser.decode(
+        structuredDocument,
+        { text: undefined },
+        reporter
+      )
+
+      expect(undefinedDecoded).toBeInstanceOf(ArrayBuffer)
+      expect(reporter).toHaveBeenCalled()
+
+      const baselineLayout = await snapshotDecodedTextLayout(
+        baselineDecoded as ArrayBuffer
+      )
+      const undefinedLayout = await snapshotDecodedTextLayout(
+        undefinedDecoded as ArrayBuffer
+      )
+
+      expect(undefinedLayout).toEqual(baselineLayout)
+    })
+
+    it('{ content: "" } 应生成有效 PDF', async () => {
+      const structuredDocument = createStructuredDocument([
+        createRenderableText({
+          id: 'blank-text',
+          content: 'Visible before override',
+          polygon: createPolygon(20, 42, 126, 16)
+        })
+      ])
+
+      const decoded = await PdfParser.decode(structuredDocument, {
+        text: { content: '' }
+      })
+
+      expect(decoded).toBeInstanceOf(ArrayBuffer)
+      expect((decoded as ArrayBuffer).byteLength).toBeGreaterThan(0)
+
+      const reparsed = await PdfParser.encode(decoded as ArrayBuffer)
+      expect(reparsed?.pageCount).toBe(1)
+
+      const page = await reparsed?.getPageByPageNumber(1)
+      const textContent = getPageTexts(page)
+        .map((text) => text.content)
+        .join('')
+
+      expect(textContent).toBe('')
     })
 
     it('应按 IntermediatePage.content 支持文本、图片、文本混合 decode', async () => {

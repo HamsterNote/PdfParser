@@ -1,0 +1,10 @@
+schema: spec-driven
+source: .sisyphus migration
+created: 2026-06-01
+description: upgrade-hamster-note-types-080
+migrated_from:
+  - .sisyphus/plans/upgrade-hamster-note-types-080.md
+  - .sisyphus/notepads/upgrade-hamster-note-types-080/
+  - .sisyphus/notepads/final-verification-wave-f3/
+  - .sisyphus/evidence/ (28 files)
+  - .sisyphus/boulder.json

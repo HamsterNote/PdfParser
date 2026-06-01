@@ -38,3 +38,6 @@ test-results/
 
 # ts 增量编译
 *.tsbuildinfo
+
+# OpenCode 工作目录
+.omo/

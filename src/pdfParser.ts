@@ -19,7 +19,14 @@ import {
   TextDir
 } from '@hamster-note/types'
 import fontkit from '@pdf-lib/fontkit'
-import { PDFDocument, type PDFFont, type PDFPage, StandardFonts } from 'pdf-lib'
+import {
+  degrees,
+  PDFDocument,
+  type PDFFont,
+  type PDFPage,
+  rgb,
+  StandardFonts
+} from 'pdf-lib'
 import type {
   DocumentInitParameters,
   PDFDocumentLoadingTask,
@@ -38,11 +45,13 @@ import './polyfills/dom-matrix.polyfill'
 import './polyfills/promise-withresolvers.polyfill'
 
 type RenderableText = {
+  color?: { r: number; g: number; b: number }
   content: string
   font: PDFFont
   fontSize: number
   lineHeight: number
   opacity: number
+  skew?: number
   x: number
   y: number
 }
@@ -73,8 +82,29 @@ type DecodeFontSet = {
   replacementCharacter: string
 }
 
+/**
+ * 允许在 decode 阶段覆盖 IntermediateText 渲染属性的子集。
+ * 仅包含可渲染属性；排版元数据（fontFamily、fontWeight、italic 等）不在此处，
+ * 因为它们在 PDF 输出路径中没有对应语义。
+ */
+export type DecodeTextOverride = Partial<
+  Pick<
+    IntermediateText,
+    | 'content'
+    | 'fontSize'
+    | 'lineHeight'
+    | 'opacity'
+    | 'color'
+    | 'polygon'
+    | 'ascent'
+    | 'descent'
+    | 'skew'
+  >
+>
+
 export type DecodeOptions = {
   fonts?: DecodeFontInput
+  text?: DecodeTextOverride
 }
 
 export type EncodeOptions = {
@@ -409,7 +439,8 @@ export class PdfParser extends DocumentParser {
         pdfDocument,
         pdfPage,
         pagePlan,
-        decodeFontSet
+        decodeFontSet,
+        options.text
       )
       if (!didDrawContent) return undefined
     }
@@ -528,13 +559,17 @@ export class PdfParser extends DocumentParser {
       )
       if (!metrics) return undefined
 
+      const color = PdfParser.parseRenderableTextColor(text.color)
+      const skew = PdfParser.normalizeSkew(text.skew)
       let currentX = metrics.x
       for (const run of runs) {
         renderableTexts.push({
           ...metrics,
+          ...(color ? { color } : {}),
           content: run.content,
           font: run.font,
           opacity: PdfParser.normalizeOpacity(text.opacity),
+          ...(skew !== undefined ? { skew } : {}),
           x: currentX
         })
 
@@ -547,6 +582,62 @@ export class PdfParser extends DocumentParser {
     }
 
     return renderableTexts
+  }
+
+  private static parseRenderableTextColor(
+    color: IntermediateText['color'] | undefined
+  ): RenderableText['color'] | undefined {
+    if (typeof color !== 'string') return undefined
+
+    const normalizedColor = color.trim()
+    if (!normalizedColor || normalizedColor.toLowerCase() === 'transparent') {
+      return undefined
+    }
+
+    const hexMatch = /^#([0-9a-fA-F]{6})$/.exec(normalizedColor)
+    if (!hexMatch) return undefined
+
+    const hex = hexMatch[1]
+    return {
+      r: Number.parseInt(hex.slice(0, 2), 16),
+      g: Number.parseInt(hex.slice(2, 4), 16),
+      b: Number.parseInt(hex.slice(4, 6), 16)
+    }
+  }
+
+  private static normalizeSkew(
+    skew: IntermediateText['skew']
+  ): number | undefined {
+    return typeof skew === 'number' && Number.isFinite(skew) ? skew : undefined
+  }
+
+  private static applyTextOverride(
+    text: IntermediateText,
+    override: DecodeTextOverride | undefined
+  ): IntermediateText {
+    const resolvedText = { ...text }
+
+    if (!override) {
+      return resolvedText
+    }
+
+    if (override.content !== undefined) {
+      resolvedText.content = override.content
+    }
+    if (override.fontSize !== undefined) {
+      resolvedText.fontSize = override.fontSize
+    }
+    if (override.lineHeight !== undefined) {
+      resolvedText.lineHeight = override.lineHeight
+    }
+    if (override.opacity !== undefined) resolvedText.opacity = override.opacity
+    if (override.color !== undefined) resolvedText.color = override.color
+    if (override.polygon !== undefined) resolvedText.polygon = override.polygon
+    if (override.ascent !== undefined) resolvedText.ascent = override.ascent
+    if (override.descent !== undefined) resolvedText.descent = override.descent
+    if (override.skew !== undefined) resolvedText.skew = override.skew
+
+    return resolvedText
   }
 
   private static resolveRenderableTextMetrics(
@@ -626,7 +717,19 @@ export class PdfParser extends DocumentParser {
         size: text.fontSize,
         lineHeight: text.lineHeight,
         font: text.font,
-        opacity: text.opacity
+        opacity: text.opacity,
+        ...(text.color
+          ? {
+              color: rgb(
+                text.color.r / 255,
+                text.color.g / 255,
+                text.color.b / 255
+              )
+            }
+          : {}),
+        ...(text.skew !== undefined && Number.isFinite(text.skew)
+          ? { xSkew: degrees(text.skew) }
+          : {})
       })
     }
   }
@@ -635,12 +738,14 @@ export class PdfParser extends DocumentParser {
     pdfDocument: PDFDocument,
     pdfPage: PDFPage,
     pagePlan: PdfPagePlan,
-    decodeFontSet: DecodeFontSet
+    decodeFontSet: DecodeFontSet,
+    textOverride?: DecodeTextOverride
   ): Promise<boolean> {
     for (const item of pagePlan.content) {
       if (PdfParser.isIntermediateText(item)) {
+        const resolvedText = PdfParser.applyTextOverride(item, textOverride)
         const renderableTexts = PdfParser.buildRenderableTexts(
-          [item],
+          [resolvedText],
           decodeFontSet,
           pagePlan.width,
           pagePlan.height
