@@ -1,0 +1,5 @@
+Task 5 native dependency evidence
+
+- `package.json` was not changed to add image encoding dependencies.
+- `package.json` contains no `canvas`, `sharp`, or `node-canvas` dependency entries.
+- Image data URL conversion uses only inline pure-JS/TypeScript code and base64 encoding via `Buffer`/`btoa` fallback.

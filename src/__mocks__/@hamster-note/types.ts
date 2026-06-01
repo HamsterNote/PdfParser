@@ -1,3 +1,6 @@
+// Mock for @hamster-note/types@0.8.0
+// Matches actual installed API surface at node_modules/@hamster-note/types/dist/**
+
 export type Number2 = {
   x: number
   y: number
@@ -9,14 +12,44 @@ export enum TextDir {
   RTL = 'rtl'
 }
 
-export type IntermediateTextPolygonPoint = [number, number]
+// Polygon types (0.8.0)
+export type PolygonPoint = [number, number]
 
-export type IntermediateTextPolygon = [
-  IntermediateTextPolygonPoint,
-  IntermediateTextPolygonPoint,
-  IntermediateTextPolygonPoint,
-  IntermediateTextPolygonPoint
-]
+export type Polygon = [PolygonPoint, PolygonPoint, PolygonPoint, PolygonPoint]
+
+// Polygon utilities (0.8.0)
+export function isFiniteCoordinate(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+export function parsePolygonPoint(point: unknown, index: number): PolygonPoint {
+  if (!Array.isArray(point) || point.length !== 2) {
+    throw new TypeError(
+      `Invalid polygon point at index ${index}: expected [number, number], got ${JSON.stringify(point)}`
+    )
+  }
+  const [x, y] = point
+  if (!isFiniteCoordinate(x) || !isFiniteCoordinate(y)) {
+    throw new TypeError(
+      `Invalid polygon point at index ${index}: coordinates must be finite numbers`
+    )
+  }
+  return [x, y] as PolygonPoint
+}
+
+export function normalizePolygon(polygon: unknown): Polygon {
+  if (!Array.isArray(polygon) || polygon.length !== 4) {
+    throw new TypeError(
+      `Invalid polygon: expected 4 points, got ${Array.isArray(polygon) ? polygon.length : typeof polygon}`
+    )
+  }
+  return [
+    parsePolygonPoint(polygon[0], 0),
+    parsePolygonPoint(polygon[1], 1),
+    parsePolygonPoint(polygon[2], 2),
+    parsePolygonPoint(polygon[3], 3)
+  ]
+}
 
 export interface IntermediateTextSerialized {
   id: string
@@ -26,12 +59,13 @@ export interface IntermediateTextSerialized {
   fontWeight: number
   italic: boolean
   color: string
-  polygon: IntermediateTextPolygon
+  polygon: Polygon
   lineHeight: number
   ascent: number
   descent: number
   vertical?: boolean
   dir: TextDir
+  opacity?: number // 0.8.0 new field
   skew: number
   isEOL: boolean
 }
@@ -44,12 +78,13 @@ export class IntermediateText implements IntermediateTextSerialized {
   fontWeight: number
   italic: boolean
   color: string
-  polygon: IntermediateTextPolygon
+  polygon: Polygon
   lineHeight: number
   ascent: number
   descent: number
   vertical?: boolean
   dir: TextDir
+  opacity?: number
   skew: number
   isEOL: boolean
 
@@ -69,6 +104,7 @@ export class IntermediateText implements IntermediateTextSerialized {
     descent: text.descent,
     vertical: text.vertical,
     dir: text.dir,
+    opacity: text.opacity,
     skew: text.skew,
     isEOL: text.isEOL
   })
@@ -91,6 +127,7 @@ export class IntermediateText implements IntermediateTextSerialized {
     descent,
     vertical,
     dir,
+    opacity,
     skew,
     isEOL
   }: IntermediateTextSerialized) {
@@ -107,10 +144,90 @@ export class IntermediateText implements IntermediateTextSerialized {
     this.descent = descent
     this.vertical = vertical
     this.dir = dir
+    this.opacity = opacity
     this.skew = skew
     this.isEOL = isEOL
   }
 }
+
+export enum TextMarkedContentType {
+  BEGIN_MARKED_CONTENT = 'beginMarkedContent',
+  BEGIN_MARKED_CONTENT_PROPS = 'beginMarkedContentProps',
+  END_MARKED_CONTENT = 'endMarkedContent'
+}
+
+export class IntermediateTextMarkedContent extends IntermediateText {
+  protected type: TextMarkedContentType
+  protected markedContentId: string
+
+  constructor(
+    data: IntermediateTextSerialized,
+    type: TextMarkedContentType,
+    markedContentId: string
+  ) {
+    super(data)
+    this.type = type
+    this.markedContentId = markedContentId
+  }
+}
+
+export interface IntermediateImageClip {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface IntermediateImageSerialized {
+  id: string
+  src: string
+  polygon: Polygon
+  opacity: number
+  clip?: IntermediateImageClip
+}
+
+export class IntermediateImage implements IntermediateImageSerialized {
+  id: string
+  src: string
+  polygon: Polygon
+  opacity: number
+  clip?: IntermediateImageClip
+
+  static readonly serialize = (
+    image: IntermediateImage
+  ): IntermediateImageSerialized => ({
+    id: image.id,
+    src: image.src,
+    polygon: image.polygon,
+    opacity: image.opacity,
+    clip: image.clip
+  })
+
+  static readonly parse = (
+    data: IntermediateImageSerialized
+  ): IntermediateImage => new IntermediateImage(data)
+
+  constructor({
+    id,
+    src,
+    polygon,
+    opacity,
+    clip
+  }: IntermediateImageSerialized) {
+    this.id = id
+    this.src = src
+    this.polygon = polygon
+    this.opacity = opacity
+    this.clip = clip
+  }
+}
+
+// 0.8.0 content types
+export type IntermediateContent = IntermediateText | IntermediateImage
+
+export type IntermediateContentSerialized =
+  | IntermediateTextSerialized
+  | IntermediateImageSerialized
 
 export interface IntermediateParagraphSerialized {
   id: string
@@ -163,18 +280,19 @@ export class IntermediateParagraph implements IntermediateParagraphSerialized {
 
 export interface IntermediatePageSerialized {
   id: string
-  texts: IntermediateTextSerialized[]
+  content?: IntermediateContentSerialized[]
+  texts?: IntermediateTextSerialized[] // backward compat
   paragraphs?: IntermediateParagraphSerialized[]
   width: number
   height: number
   number: number
-  thumbnail: string | undefined
+  thumbnail?: IntermediateImageSerialized
 }
 
-type TextsGetterReturnType =
-  | Promise<IntermediateText[] | IntermediateTextSerialized[]>
-  | IntermediateText[]
-  | IntermediateTextSerialized[]
+type ContentGetterReturnType =
+  | Promise<IntermediateContent[] | IntermediateContentSerialized[]>
+  | IntermediateContent[]
+  | IntermediateContentSerialized[]
 
 type PageLoader = () => Promise<IntermediatePage>
 
@@ -188,26 +306,32 @@ interface IntermediatePageEntry {
 
 export class IntermediatePage {
   id: string
-  texts: IntermediateText[]
+  content: IntermediateContent[]
   paragraphs: IntermediateParagraph[]
   width: number
   height: number
   number: number
-  private _thumbnail?: string
-  private _getThumbnailFn?: (scale: number) => Promise<string | undefined>
-  private _getTextsFn?: () => TextsGetterReturnType
-  private textsLoaded: boolean
+  thumbnail?: IntermediateImageSerialized
+  private _getThumbnailFn?: (
+    scale: number
+  ) => Promise<IntermediateImage | undefined>
+  private _getContentFn?: () => ContentGetterReturnType
+  private contentLoaded: boolean
 
   static readonly serialize = (
     page: IntermediatePage
   ): IntermediatePageSerialized => ({
     id: page.id,
-    texts: page.texts.map(IntermediateText.serialize),
+    content: page.content.map((item) =>
+      item instanceof IntermediateImage
+        ? IntermediateImage.serialize(item)
+        : IntermediateText.serialize(item as IntermediateText)
+    ),
     paragraphs: page.paragraphs.map(IntermediateParagraph.serialize),
     width: page.width,
     height: page.height,
     number: page.number,
-    thumbnail: page._thumbnail
+    thumbnail: page.thumbnail
   })
 
   static readonly parse = (
@@ -215,6 +339,7 @@ export class IntermediatePage {
   ): IntermediatePage => new IntermediatePage(data)
 
   constructor({
+    content,
     texts,
     paragraphs,
     width,
@@ -223,69 +348,101 @@ export class IntermediatePage {
     id,
     thumbnail,
     getThumbnailFn,
-    getTextsFn
-  }: Omit<IntermediatePageSerialized, 'texts' | 'paragraphs'> & {
-    texts: IntermediateText[] | IntermediateTextSerialized[]
+    getContentFn
+  }: Omit<IntermediatePageSerialized, 'content' | 'texts' | 'paragraphs'> & {
+    content?: IntermediateContent[] | IntermediateContentSerialized[]
+    texts?: IntermediateText[] | IntermediateTextSerialized[]
     paragraphs?: IntermediateParagraph[] | IntermediateParagraphSerialized[]
   } & {
-    getThumbnailFn?: (scale: number) => Promise<string | undefined>
-    getTextsFn?: () => TextsGetterReturnType
+    getThumbnailFn?: (scale: number) => Promise<IntermediateImage | undefined>
+    getContentFn?: () => ContentGetterReturnType
   }) {
     this.id = id
     this.width = width
     this.height = height
     this.number = number
-    this._thumbnail = thumbnail
+    this.thumbnail = thumbnail
     this._getThumbnailFn = getThumbnailFn
-    this._getTextsFn = getTextsFn
-    this.texts = texts.map(
-      (text): IntermediateText =>
-        text instanceof IntermediateText ? text : new IntermediateText(text)
-    )
+    this._getContentFn = getContentFn
+
+    // Handle content vs texts backward compatibility
+    // If texts is provided but not content, treat texts as content (transition period)
+    if (content !== undefined) {
+      this.content = content.map((item) => {
+        if (item instanceof IntermediateImage) return item
+        if (item instanceof IntermediateText) return item
+        // It's a serialized form
+        if ('src' in item) return IntermediateImage.parse(item)
+        return IntermediateText.parse(item as IntermediateTextSerialized)
+      })
+    } else if (texts !== undefined) {
+      // Backward compatibility: texts passed but not content
+      this.content = texts.map((text) =>
+        text instanceof IntermediateText
+          ? text
+          : IntermediateText.parse(text as IntermediateTextSerialized)
+      )
+    } else {
+      this.content = []
+    }
+
     this.paragraphs = (paragraphs ?? []).map(
       (paragraph): IntermediateParagraph =>
         paragraph instanceof IntermediateParagraph
           ? paragraph
           : new IntermediateParagraph(paragraph)
     )
-    this.textsLoaded = getTextsFn === undefined
+    this.contentLoaded = getContentFn === undefined
   }
 
-  async getThumbnail(scale: number = 1): Promise<string | undefined> {
+  async getThumbnail(
+    scale: number = 1
+  ): Promise<IntermediateImage | undefined> {
     if (this._getThumbnailFn) {
       const thumbnail = await this._getThumbnailFn(scale)
-      this._thumbnail = thumbnail
+      this.thumbnail = thumbnail
+        ? IntermediateImage.serialize(thumbnail)
+        : undefined
       return thumbnail
     }
 
-    return this._thumbnail
-  }
-
-  async getTexts(): Promise<IntermediateText[]> {
-    if (this._getTextsFn) {
-      const texts = await this._getTextsFn()
-      this.texts = texts.map(
-        (text): IntermediateText =>
-          text instanceof IntermediateText ? text : new IntermediateText(text)
-      )
-      this.textsLoaded = true
-      this._getTextsFn = undefined
+    // Return deserialized thumbnail if available
+    if (this.thumbnail) {
+      return IntermediateImage.parse(this.thumbnail)
     }
 
-    return this.texts
+    return undefined
   }
 
-  get hasLoadedTexts(): boolean {
-    return this.textsLoaded
+  async getContent(): Promise<IntermediateContent[]> {
+    if (this._getContentFn) {
+      const content = await this._getContentFn()
+      this.content = content.map((item) => {
+        if (item instanceof IntermediateImage) return item
+        if (item instanceof IntermediateText) return item
+        if ('src' in item) return IntermediateImage.parse(item)
+        return IntermediateText.parse(item as IntermediateTextSerialized)
+      })
+      this.contentLoaded = true
+      this._getContentFn = undefined
+    }
+
+    return this.content
   }
 
-  setGetThumbnail(fn: (scale: number) => Promise<string | undefined>): void {
+  get hasLoadedContent(): boolean {
+    return this.contentLoaded
+  }
+
+  setGetThumbnail(
+    fn: (scale: number) => Promise<IntermediateImage | undefined>
+  ): void {
     this._getThumbnailFn = fn
   }
 
-  setGetTexts(fn: () => TextsGetterReturnType): void {
-    this._getTextsFn = fn
-    this.textsLoaded = false
+  setGetContent(fn: () => ContentGetterReturnType): void {
+    this._getContentFn = fn
+    this.contentLoaded = false
   }
 }
 
@@ -513,14 +670,14 @@ export class IntermediateDocument {
     return this.pagesMap.pageNumbers
   }
 
-  getCover = async (): Promise<string | undefined> => {
+  getCover = async (scale?: number): Promise<IntermediateImage | undefined> => {
     const firstPageNumber = this.pageNumbers[0]
     const firstPage =
       firstPageNumber === undefined
         ? undefined
         : await this.getPageByPageNumber(firstPageNumber)
 
-    return firstPage?.getThumbnail()
+    return firstPage ? firstPage.getThumbnail(scale) : undefined
   }
 
   getPageById = (id: string): Promise<IntermediatePage> | undefined => {

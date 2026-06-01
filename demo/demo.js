@@ -61,6 +61,7 @@ const decodeFontSetupPromise = configureDemoDecodeFonts()
 
 const loadSampleButton = document.getElementById('demo-load-sample')
 const fileInput = document.getElementById('pdf-file-input')
+const pageNumberInput = document.getElementById('page-number-input')
 const encodeButton = document.getElementById('encode-button')
 const decodeButton = document.getElementById('decode-button')
 const jsonOutputToggle = document.getElementById('json-output-toggle')
@@ -88,6 +89,8 @@ const decodePreviewElement = document.querySelector(
 const decodePreviewNoteElement = document.querySelector(
   '[data-role="decode-preview-note"]'
 )
+const decodeTextOverrideInput = document.getElementById('decode-text-override')
+const decodeTextErrorElement = document.getElementById('decode-text-error')
 
 let currentFile = null
 let currentIntermediateDocument = null
@@ -101,6 +104,14 @@ let latestJsonOutput = {
 }
 
 const isJsonOutputEnabled = () => jsonOutputToggle?.checked !== false
+
+const getSelectedPageNumber = () => {
+  if (!pageNumberInput) return undefined
+  const value = pageNumberInput.value.trim()
+  if (value === '') return undefined
+  const num = parseInt(value, 10)
+  return Number.isFinite(num) && num >= 1 ? num : undefined
+}
 
 const syncJsonOutputVisibility = () => {
   if (jsonOutputCardElement) {
@@ -184,6 +195,104 @@ const setDecodePreviewNote = (text, isError = false) => {
   decodePreviewNoteElement.classList.toggle('is-error', isError)
 }
 
+const setDecodeTextError = (text) => {
+  if (decodeTextErrorElement) {
+    decodeTextErrorElement.textContent = text
+  }
+
+  if (decodeTextOverrideInput) {
+    decodeTextOverrideInput.setAttribute('aria-invalid', 'true')
+  }
+}
+
+const clearDecodeTextError = () => {
+  if (decodeTextErrorElement) {
+    decodeTextErrorElement.textContent = ''
+  }
+
+  if (decodeTextOverrideInput) {
+    decodeTextOverrideInput.setAttribute('aria-invalid', 'false')
+  }
+}
+
+const ALLOWED_DECODE_TEXT_OVERRIDE_KEYS = new Set([
+  'content',
+  'fontSize',
+  'lineHeight',
+  'opacity',
+  'color',
+  'polygon',
+  'ascent',
+  'descent',
+  'skew'
+])
+
+const isValidHexColor = (value) => {
+  if (typeof value !== 'string') return false
+  return /^#[0-9a-fA-F]{6}$/.test(value)
+}
+
+const isFiniteNumber = (value) => {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+const isNumberArray = (value) => {
+  return Array.isArray(value) && value.every((entry) => isFiniteNumber(entry))
+}
+
+const getDecodeTextOverrideValidationError = (parsed, keys) => {
+  const unknownKey = keys.find(
+    (key) => !ALLOWED_DECODE_TEXT_OVERRIDE_KEYS.has(key)
+  )
+  if (unknownKey) return `Unknown field: "${unknownKey}".`
+
+  if (
+    'color' in parsed &&
+    parsed.color !== 'transparent' &&
+    !isValidHexColor(parsed.color)
+  ) {
+    return 'Invalid color. Use "#RRGGBB" or "transparent".'
+  }
+
+  const invalidNumberField = [
+    'fontSize',
+    'lineHeight',
+    'opacity',
+    'ascent',
+    'descent',
+    'skew'
+  ].find((field) => field in parsed && !isFiniteNumber(parsed[field]))
+  if (invalidNumberField) return `${invalidNumberField} must be a number.`
+
+  if ('polygon' in parsed && !isNumberArray(parsed.polygon)) {
+    return 'polygon must be an array of numbers.'
+  }
+
+  return null
+}
+
+const validateDecodeTextOverride = (raw) => {
+  let parsed
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return { valid: false, error: 'Invalid JSON syntax.' }
+  }
+
+  if (parsed === null || Array.isArray(parsed) || typeof parsed !== 'object') {
+    return {
+      valid: false,
+      error: 'JSON must be an object (not an array or primitive).'
+    }
+  }
+
+  const keys = Object.keys(parsed)
+  const validationError = getDecodeTextOverrideValidationError(parsed, keys)
+  if (validationError) return { valid: false, error: validationError }
+
+  return { valid: true, value: parsed }
+}
+
 const setSummary = (html) => {
   if (summaryElement) {
     summaryElement.innerHTML = html
@@ -265,7 +374,7 @@ const renderEncodeDiagnostics = (diagnostics) => {
 
   let bottleneck = 'Waiting for serializer completion dominated.'
   if (slowestPage && Number.isFinite(slowestPage.resolveTextsMs)) {
-    bottleneck = `Slowest page: ${slowestPage.pageNumber} (${formatMetricValue(slowestPage.totalDurationMs)} total, ${formatMetricValue(slowestPage.resolveTextsMs)} in text resolution).`
+    bottleneck = `Slowest page: ${slowestPage.pageNumber} (${formatMetricValue(slowestPage.totalDurationMs)} total, ${formatMetricValue(slowestPage.resolveTextsMs)} in content resolution).`
   } else if (Number.isFinite(diagnostics.coverDiagnostic?.durationMs)) {
     bottleneck = `Cover work took ${formatMetricValue(diagnostics.coverDiagnostic.durationMs)}.`
   }
@@ -279,7 +388,7 @@ const renderEncodeDiagnostics = (diagnostics) => {
     <p><strong>Cover:</strong> ${escapeHtml(coverSummary)}</p>
     <ul class="diagnostics-list">
       <li>Inspect raw data in <code>window.__pdfParserDemoDiagnostics.lastEncode</code>.</li>
-      <li>Use <code>pageDiagnostics</code> to compare per-page text resolution cost.</li>
+      <li>Use <code>pageDiagnostics</code> to compare per-page content resolution cost.</li>
     </ul>
   `)
 }
@@ -441,6 +550,9 @@ const formatEncodeProgressText = (event) => {
   }
 
   if (total > 0) {
+    if (total === 1) {
+      return 'Encoding page 1...'
+    }
     return `Encoding page ${Math.min(current, total)} of ${total}...`
   }
 
@@ -525,16 +637,20 @@ const disableEncodeButton = () => {
   }
 }
 
-const renderSummary = (serialized) => {
+const renderSummary = (serialized, singlePageNumber) => {
   const pageCount = Number.isFinite(serialized.pageCount)
     ? serialized.pageCount
     : 0
   const hasOutline = Boolean(serialized.hasOutline)
+  const pageCountText =
+    singlePageNumber != null && pageCount > 0
+      ? `Page ${singlePageNumber} of ${pageCount}`
+      : `${pageCount}`
 
   setSummary(`
     <p><strong>Title:</strong> ${escapeHtml(serialized.title || 'N/A')}</p>
     <p><strong>ID:</strong> ${escapeHtml(serialized.id || 'N/A')}</p>
-    <p><strong>Page Count:</strong> ${pageCount}</p>
+    <p><strong>Page Count:</strong> ${pageCountText}</p>
     <p><strong>Outline:</strong> ${hasOutline ? 'available' : 'none'}</p>
   `)
 }
@@ -542,6 +658,7 @@ const renderSummary = (serialized) => {
 const handleLoadSample = async () => {
   setStatus('Loading sample...')
   setError('')
+  clearDecodeTextError()
   renderDiagnosticsPlaceholder(
     'Loading a sample clears the previous encode diagnostics.'
   )
@@ -582,6 +699,7 @@ const handleFileSelect = (event) => {
   }
 
   setError('')
+  clearDecodeTextError()
   renderDiagnosticsPlaceholder(
     'Selecting a file clears the previous encode diagnostics.'
   )
@@ -615,6 +733,7 @@ const handleEncode = async () => {
     return
   }
 
+  clearDecodeTextError()
   const encodeContextId = activeDecodeContextId + 1
   activeDecodeContextId = encodeContextId
   revokeDecodePreviewUrl()
@@ -628,7 +747,11 @@ const handleEncode = async () => {
     note: 'Only the newest successful encode result can be decoded.'
   })
 
-  setStatus('Encoding...')
+  const pageNumber = getSelectedPageNumber()
+  const encodeStatusPrefix = pageNumber
+    ? `Encoding page ${pageNumber}...`
+    : 'Encoding...'
+  setStatus(encodeStatusPrefix)
   setError('')
   renderDiagnosticsPlaceholder('Collecting encode diagnostics...')
   setJsonOutputMessage('Working...')
@@ -654,29 +777,34 @@ const handleEncode = async () => {
 
   try {
     const arrayBuffer = await currentFile.arrayBuffer()
-    const intermediate = await PdfParser.encode(arrayBuffer, {}, (event) => {
-      if (encodeContextId !== activeDecodeContextId) {
-        return
-      }
+    const encodeOptions = pageNumber ? { pages: [pageNumber] } : {}
+    const intermediate = await PdfParser.encode(
+      arrayBuffer,
+      encodeOptions,
+      (event) => {
+        if (encodeContextId !== activeDecodeContextId) {
+          return
+        }
 
-      setStatus(formatEncodeProgressText(event))
+        setStatus(formatEncodeProgressText(event))
 
-      if (event?.stage === 'encode:start') {
-        setPreviewNote('Encoding PDF pages...')
-      }
+        if (event?.stage === 'encode:start') {
+          setPreviewNote('Encoding PDF pages...')
+        }
 
-      if (event?.stage === 'encode:page' && event.total > 0) {
-        const pageLabel = event.total === 1 ? 'page' : 'pages'
-        setPreviewNote(
-          `Processed ${event.current} / ${event.total} ${pageLabel} so far.`
-        )
-      }
+        if (event?.stage === 'encode:page' && event.total > 0) {
+          const pageLabel = event.total === 1 ? 'page' : 'pages'
+          setPreviewNote(
+            `Processed ${event.current} / ${event.total} ${pageLabel} so far.`
+          )
+        }
 
-      if (event?.stage === 'encode:complete') {
-        encodeDiagnostics.milestones.encodeCompleteAt = roundMs(getNow())
-        setPreviewNote('Finalizing the restored PDF preview...')
+        if (event?.stage === 'encode:complete') {
+          encodeDiagnostics.milestones.encodeCompleteAt = roundMs(getNow())
+          setPreviewNote('Finalizing the restored PDF preview...')
+        }
       }
-    })
+    )
 
     if (encodeContextId !== activeDecodeContextId) {
       return
@@ -706,6 +834,7 @@ const handleEncode = async () => {
             resolveTextsMs: roundMs(event.resolveTextsMs),
             buildSummaryMs: roundMs(event.buildSummaryMs),
             textCount: event.textCount,
+            imageCount: event.imageCount,
             missing: event.missing
           })
           return
@@ -728,7 +857,7 @@ const handleEncode = async () => {
     })
     renderJsonOutputData(serializer.shell)
     encodeDiagnostics.milestones.shellRenderedAt = roundMs(getNow())
-    renderSummary(serializer.shell)
+    renderSummary(serializer.shell, pageNumber)
 
     serializer.onUpdate((snapshot) => {
       if (encodeContextId !== activeDecodeContextId) {
@@ -736,7 +865,7 @@ const handleEncode = async () => {
       }
 
       updateJsonOutputData(snapshot)
-      renderSummary(snapshot)
+      renderSummary(snapshot, pageNumber)
     })
 
     const finalSnapshot = await serializer.resolve()
@@ -747,7 +876,7 @@ const handleEncode = async () => {
     }
 
     updateJsonOutputData(finalSnapshot)
-    renderSummary(finalSnapshot)
+    renderSummary(finalSnapshot, pageNumber)
     activateDecodeContext(intermediate)
 
     encodeDiagnostics.milestones.readyAt = roundMs(getNow())
@@ -823,6 +952,34 @@ const handleDecode = async () => {
     return
   }
 
+  const rawOverride = decodeTextOverrideInput?.value ?? ''
+  const trimmedOverride = rawOverride.trim()
+  let decodeOptions = {}
+
+  if (trimmedOverride !== '') {
+    const validation = validateDecodeTextOverride(trimmedOverride)
+    if (!validation.valid) {
+      setDecodeTextError(validation.error)
+      revokeDecodePreviewUrl()
+      setDecodeButtonEnabled(true)
+      setDecodeState({
+        name: 'idle',
+        statusText: 'Invalid JSON override. Fix the error below and try again.',
+        previewMessage:
+          'Decode preview cleared because the JSON override is invalid.',
+        note: validation.error,
+        isError: true
+      })
+      return
+    }
+    clearDecodeTextError()
+    if (validation.value !== undefined) {
+      decodeOptions = { text: validation.value }
+    }
+  } else {
+    clearDecodeTextError()
+  }
+
   const decodeContextId = activeDecodeContextId
   const intermediateDocument = currentIntermediateDocument
 
@@ -841,7 +998,7 @@ const handleDecode = async () => {
     await decodeFontSetupPromise
     const decoded = await PdfParser.decode(
       intermediateDocument,
-      {},
+      decodeOptions,
       (event) => {
         if (
           decodeContextId !== activeDecodeContextId ||

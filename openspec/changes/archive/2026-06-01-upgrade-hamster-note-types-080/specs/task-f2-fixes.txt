@@ -1,0 +1,18 @@
+Task F2 fixes evidence
+
+Changed production code in src/pdfParser.ts:
+- Replaced console.warn usage for drawImageToPdfPage unsupported/invalid/empty image cases with internal PdfParser warning collection.
+- Replaced console.warn usage for raw image conversion warnings with internal PdfParser warning collection.
+- Replaced console.error usage for outline mapping errors with silent undefined return.
+- Updated extractImagesFromPage comment to remove outdated spike/not-connected-to-encode wording and state buildIntermediatePage encode integration.
+
+Verification:
+- grep console\. src/pdfParser.ts: no matches found.
+- LSP diagnostics for src/pdfParser.ts: no diagnostics found.
+- yarn lint: passed.
+- yarn test && yarn lint: failed because existing tests still assert console.warn/console.error calls that F2 explicitly removes:
+  - src/__tests__/outline-mapping.test.ts expects console.error on getPageIndex error.
+  - src/__tests__/imageDataUrlConversion.test.ts expects console.warn for unsupported image data.
+  - src/__tests__/pdfParserIntegration.test.ts expects console.warn for unsupported intermediate image src.
+
+No test files were intentionally changed.

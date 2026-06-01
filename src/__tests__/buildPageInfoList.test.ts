@@ -2,7 +2,8 @@ import { PdfParser } from '@PdfParser'
 import { describe, expect, it, jest } from '@jest/globals'
 import type {
   PDFDocumentProxy,
-  PDFPageProxy
+  PDFPageProxy,
+  TextContent
 } from 'pdfjs-dist/types/src/display/api'
 
 function getPageDelay(pageNumber: number, baseDelay: number): number {
@@ -35,10 +36,11 @@ function createProgressTrackerWithDetails() {
   }
 }
 
-function createEmptyTextContent() {
+function createEmptyTextContent(): TextContent {
   return {
     items: [],
-    styles: Object.create(null)
+    styles: Object.create(null),
+    lang: null
   }
 }
 
@@ -115,7 +117,7 @@ function createLazyGetPageMock() {
         width: 100,
         height: 200
       }),
-      getTextContent: jest.fn().mockResolvedValue(createEmptyTextContent()),
+      getTextContent: jest.fn(async () => createEmptyTextContent()),
       cleanup: jest.fn()
     } as unknown as PDFPageProxy
   })

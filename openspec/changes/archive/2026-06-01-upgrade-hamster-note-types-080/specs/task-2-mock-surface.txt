@@ -1,0 +1,43 @@
+# Task 2: Mock Surface Verification
+
+## Date: 2026-05-23
+
+## Mock File: src/__mocks__/@hamster-note/types.ts
+
+### Exports Verified:
+- IntermediateImage: ✓ (new class with id, src, polygon, opacity, clip)
+- IntermediateContent: ✓ (type alias IntermediateText | IntermediateImage)
+- IntermediateContentSerialized: ✓
+
+### Removed (0.8.0 incompatible):
+- getTexts: ✓ REMOVED (replaced by getContent)
+- setGetTexts: ✓ REMOVED (replaced by setGetContent)
+- hasLoadedTexts: ✓ REMOVED (replaced by hasLoadedContent)
+- _thumbnail as string: ✓ REMOVED (now IntermediateImageSerialized | undefined)
+
+### New 0.8.0 APIs:
+- getContent(): Promise<IntermediateContent[]>
+- hasLoadedContent: boolean
+- setGetContent(fn): void
+- getThumbnail(): Promise<IntermediateImage | undefined>
+- IntermediateDocument.getCover(): Promise<IntermediateImage | undefined>
+- IntermediateText.opacity?: number
+- IntermediatePage.thumbnail?: IntermediateImageSerialized
+- IntermediatePage.content: IntermediateContent[]
+
+### Polygon utilities:
+- isFiniteCoordinate(value: unknown): value is number
+- parsePolygonPoint(point: unknown, index: number): PolygonPoint
+- normalizePolygon(polygon: unknown): Polygon
+
+### Polygon type:
+- PolygonPoint = [number, number]
+- Polygon = [PolygonPoint, PolygonPoint, PolygonPoint, PolygonPoint]
+
+### Backward compatibility (IntermediatePage constructor):
+- Accepts content: IntermediateContent[] | IntermediateContentSerialized[]
+- Accepts texts: IntermediateText[] | IntermediateTextSerialized[] (legacy)
+- When texts provided but not content, converts texts to content internally
+
+## Evidence: yarn test --runTestsByPath src/__tests__/mapTextDir.test.ts
+- Test passed with 12/12 tests

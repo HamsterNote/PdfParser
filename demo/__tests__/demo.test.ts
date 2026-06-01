@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 
 type Deferred<T> = {
@@ -27,16 +28,54 @@ async function flushTicks(count = 4) {
 }
 
 type Snapshot = { id: string; pages: Array<{ textCount: number }> }
+type DemoDiagnosticsState = {
+  lastEncode: {
+    totals?: Record<string, unknown>
+    pageDiagnostics?: Record<string, unknown>[]
+    coverDiagnostic?: Record<string, unknown>
+  }
+}
+type DemoWindowMock = {
+  __pdfParserDemoDiagnostics?: DemoDiagnosticsState
+  addEventListener: jest.Mock
+}
+type SerializerOptions = {
+  onDiagnostic?: (event: Record<string, unknown>) => void
+  onProgress?: (event: Record<string, unknown>) => void
+}
+type DecodeMock = jest.Mock<
+  (
+    buffer?: unknown,
+    options?: unknown,
+    onProgress?: (event: Record<string, unknown>) => void
+  ) => Promise<ArrayBuffer | undefined>
+>
+type DemoFetchResponse = {
+  ok: boolean
+  blob?: () => Promise<Blob>
+}
+type DemoFetchMock = jest.Mock<
+  (input?: unknown, init?: unknown) => Promise<DemoFetchResponse>
+>
+type RenderPreviewFrameMock = jest.Mock<
+  (preview: unknown, frameUrl: string, title?: string) => void
+>
+type SetPreviewMessageMock = jest.Mock<
+  (preview: unknown, message: string, isError?: boolean) => void
+>
 
 function createElementMock() {
   const listeners = new Map<string, (event?: unknown) => void>()
+  const attributes = new Map<string, string>()
   return {
     textContent: '',
     innerHTML: '',
     disabled: false,
     hidden: false,
     checked: true,
+    value: '',
     dataset: {} as Record<string, string>,
+    focus: jest.fn(),
     classList: {
       toggle: jest.fn()
     },
@@ -45,6 +84,15 @@ function createElementMock() {
         listeners.set(name, handler)
       }
     ),
+    setAttribute: jest.fn((name: string, value: string) => {
+      attributes.set(name, value)
+    }),
+    getAttribute: jest.fn((name: string) => {
+      return attributes.get(name) ?? null
+    }),
+    removeAttribute: jest.fn((name: string) => {
+      attributes.delete(name)
+    }),
     trigger(name: string, event?: unknown) {
       const handler = listeners.get(name)
       if (handler) {
@@ -53,6 +101,38 @@ function createElementMock() {
     }
   }
 }
+
+function setMockPreviewContent(
+  preview: unknown,
+  innerHTML: string,
+  textContent: string
+) {
+  const element = preview as {
+    innerHTML?: string
+    textContent?: string
+  } | null
+
+  if (!element) {
+    return
+  }
+
+  element.innerHTML = innerHTML
+  element.textContent = textContent
+}
+
+function getElementTag(html: string, tagName: string, id: string) {
+  const match = html.match(
+    new RegExp(`<${tagName}\\b[^>]*\\bid="${id}"[^>]*>`, 'i')
+  )
+
+  if (!match) {
+    throw new Error(`Missing <${tagName}>#${id}`)
+  }
+
+  return match[0]
+}
+
+const encodeHtml = readFileSync('demo/encode.html', 'utf8')
 
 async function setupDemo() {
   jest.resetModules()
@@ -73,6 +153,29 @@ async function setupDemo() {
   const decodeStatusElement = createElementMock()
   const decodePreviewElement = createElementMock()
   const decodePreviewNoteElement = createElementMock()
+  const decodeTextOverrideInput = createElementMock()
+  const decodeTextErrorElement = createElementMock()
+  const renderPreviewFrame: RenderPreviewFrameMock = jest.fn(
+    (preview: unknown, frameUrl: string, title = 'PDF preview') => {
+      setMockPreviewContent(
+        preview,
+        `<iframe src="${frameUrl}" title="${title}"></iframe>`,
+        title
+      )
+    }
+  )
+  const setPreviewMessage: SetPreviewMessageMock = jest.fn(
+    (preview: unknown, message: string, isError = false) => {
+      const className = isError
+        ? 'preview-placeholder preview-error'
+        : 'preview-placeholder'
+      setMockPreviewContent(
+        preview,
+        `<span class="${className}">${message}</span>`,
+        message
+      )
+    }
+  )
 
   const queryMap = new Map<string, unknown>([
     ['[data-role="status"]', statusElement],
@@ -88,20 +191,37 @@ async function setupDemo() {
     ['[data-role="decode-preview-note"]', decodePreviewNoteElement]
   ])
 
-  const renderData = jest.fn()
-  const updateData = jest.fn()
-  const renderMessage = jest.fn()
+  const renderData = jest.fn<(data: unknown) => void>()
+  const updateData = jest.fn<(data: unknown) => void>()
+  const renderMessage = jest.fn<(message: string) => void>()
 
-  const encodeMock = jest.fn()
+  const encodeMock =
+    jest.fn<
+      (
+        buffer?: unknown,
+        options?: unknown,
+        onProgress?: (event: Record<string, unknown>) => void
+      ) => Promise<unknown>
+    >()
   const configureDecodeFontMock = jest.fn()
 
-  const serializerFactoryMock = jest.fn()
+  const serializerFactoryMock = jest.fn<
+    (
+      intermediate?: unknown,
+      options?: SerializerOptions
+    ) => {
+      shell: unknown
+      onUpdate: (callback: (snapshot: Snapshot) => void) => void
+      resolve: () => Promise<unknown>
+    }
+  >()
   const consoleInfo = jest.spyOn(console, 'info').mockImplementation(() => {})
   const consoleTable = jest.spyOn(console, 'table').mockImplementation(() => {})
 
-  ;(globalThis as unknown as { fetch: unknown }).fetch = jest.fn(async () => ({
+  const fetchMock: DemoFetchMock = jest.fn(async () => ({
     ok: true
   }))
+  ;(globalThis as unknown as { fetch: DemoFetchMock }).fetch = fetchMock
   ;(globalThis as unknown as { URL: unknown }).URL = {
     createObjectURL: jest.fn(() => 'blob:preview'),
     revokeObjectURL: jest.fn()
@@ -114,6 +234,8 @@ async function setupDemo() {
       if (id === 'encode-button') return encodeButton
       if (id === 'decode-button') return decodeButton
       if (id === 'json-output-toggle') return jsonOutputToggle
+      if (id === 'decode-text-override') return decodeTextOverrideInput
+      if (id === 'decode-text-error') return decodeTextErrorElement
       return null
     }),
     querySelector: jest.fn(
@@ -123,7 +245,7 @@ async function setupDemo() {
   }
 
   ;(globalThis as unknown as { document: unknown }).document = documentMock
-  const windowMock = {
+  const windowMock: DemoWindowMock = {
     __pdfParserDemoDiagnostics: undefined,
     addEventListener: jest.fn()
   }
@@ -143,15 +265,17 @@ async function setupDemo() {
   }))
 
   await jest.unstable_mockModule('../demoPreview.js', () => ({
-    renderPreviewFrame: jest.fn(),
-    setPreviewMessage: jest.fn()
+    renderPreviewFrame,
+    setPreviewMessage
   }))
+
+  const decodeMock: DecodeMock = jest.fn()
 
   const browserModule = await import('../../dist/browser.js')
   ;(browserModule.PdfParser as unknown as { encode: unknown }).encode =
     encodeMock
   ;(browserModule.PdfParser as unknown as { decode: unknown }).decode =
-    jest.fn()
+    decodeMock
   ;(
     browserModule.PdfParser as unknown as { configureDecodeFont: unknown }
   ).configureDecodeFont = configureDecodeFontMock
@@ -164,7 +288,9 @@ async function setupDemo() {
   fileInput.trigger('change', { target: { files: [testFile] } })
 
   return {
+    loadSampleButton,
     encodeButton,
+    fileInput,
     jsonOutputToggle,
     jsonOutputCardElement,
     statusElement,
@@ -172,15 +298,84 @@ async function setupDemo() {
     summaryElement,
     diagnosticsElement,
     decodeButton,
+    decodeStatusElement,
+    decodePreviewElement,
+    decodePreviewNoteElement,
+    decodeTextOverrideInput,
+    decodeTextErrorElement,
+    renderPreviewFrame,
+    setPreviewMessage,
     renderData,
     updateData,
     renderMessage,
     encodeMock,
+    decodeMock,
     serializerFactoryMock,
     windowMock,
     consoleInfo,
     consoleTable
   }
+}
+
+async function prepareDecodeContext(
+  env: Awaited<ReturnType<typeof setupDemo>>
+) {
+  const intermediate = { id: 'doc-decode', title: 'Doc Decode' }
+  const shell = {
+    id: 'doc-decode',
+    title: 'Doc Decode',
+    pageCount: 1,
+    hasOutline: false,
+    pageNumbers: [1],
+    coverAvailable: false,
+    pages: [
+      {
+        number: 1,
+        width: 100,
+        height: 100,
+        textCount: 0,
+        imageCount: 0,
+        previewText: []
+      }
+    ]
+  }
+  const finalSnapshot = {
+    ...shell,
+    pages: [
+      {
+        number: 1,
+        width: 100,
+        height: 100,
+        textCount: 1,
+        imageCount: 0,
+        previewText: []
+      }
+    ]
+  }
+
+  env.serializerFactoryMock.mockReturnValue({
+    shell,
+    onUpdate: jest.fn(),
+    resolve: async () => finalSnapshot
+  })
+  env.encodeMock.mockResolvedValue(intermediate)
+
+  env.encodeButton.trigger('click')
+  await flushTicks()
+
+  expect(env.decodeButton.disabled).toBe(false)
+}
+
+async function renderDecodeSuccess(env: Awaited<ReturnType<typeof setupDemo>>) {
+  env.decodeTextOverrideInput.value = JSON.stringify({
+    content: 'Preview text'
+  })
+  env.decodeMock.mockResolvedValue(new Uint8Array([37, 80, 68, 70]).buffer)
+
+  env.decodeButton.trigger('click')
+  await flushTicks()
+
+  expect(env.decodeStatusElement.dataset.state).toBe('success')
 }
 
 describe('demo handleEncode progressive behavior', () => {
@@ -200,22 +395,64 @@ describe('demo handleEncode progressive behavior', () => {
       pageNumbers: [1, 2],
       coverAvailable: false,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 0, previewText: [] },
-        { number: 2, width: 100, height: 100, textCount: 0, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 0,
+          imageCount: 0,
+          previewText: []
+        },
+        {
+          number: 2,
+          width: 100,
+          height: 100,
+          textCount: 0,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
     const progressiveSnapshot = {
       ...shell,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 1, previewText: [] },
-        { number: 2, width: 100, height: 100, textCount: 0, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 1,
+          imageCount: 0,
+          previewText: []
+        },
+        {
+          number: 2,
+          width: 100,
+          height: 100,
+          textCount: 0,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
     const finalSnapshot = {
       ...shell,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 1, previewText: [] },
-        { number: 2, width: 100, height: 100, textCount: 2, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 1,
+          imageCount: 0,
+          previewText: []
+        },
+        {
+          number: 2,
+          width: 100,
+          height: 100,
+          textCount: 2,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
 
@@ -238,8 +475,9 @@ describe('demo handleEncode progressive behavior', () => {
       '<strong>Page Count:</strong> 2'
     )
     expect(env.decodeButton.disabled).toBe(true)
-
-    onUpdateHandler?.(progressiveSnapshot)
+    ;(onUpdateHandler as unknown as (snapshot: Snapshot) => void)(
+      progressiveSnapshot
+    )
     expect(env.updateData).toHaveBeenCalledWith(progressiveSnapshot)
 
     resolveDeferred.resolve(finalSnapshot)
@@ -254,7 +492,9 @@ describe('demo handleEncode progressive behavior', () => {
     expect(env.diagnosticsElement.innerHTML).toContain(
       'window.__pdfParserDemoDiagnostics.lastEncode'
     )
-    expect(env.windowMock.__pdfParserDemoDiagnostics.lastEncode.totals).toEqual(
+    expect(
+      env.windowMock.__pdfParserDemoDiagnostics?.lastEncode.totals
+    ).toEqual(
       expect.objectContaining({
         serializerResolveMs: expect.any(Number),
         totalEncodeFlowMs: expect.any(Number)
@@ -274,20 +514,34 @@ describe('demo handleEncode progressive behavior', () => {
       pageNumbers: [1],
       coverAvailable: false,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 0, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 0,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
     const finalSnapshot = {
       ...shell,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 2, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 2,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
 
     env.serializerFactoryMock.mockReturnValue({
       shell,
       onUpdate: jest.fn(),
-      resolve: jest.fn().mockResolvedValue(finalSnapshot)
+      resolve: async () => finalSnapshot
     })
     env.encodeMock.mockResolvedValue({ id: 'intermediate-1' })
 
@@ -322,19 +576,31 @@ describe('demo handleEncode progressive behavior', () => {
       pageNumbers: [1],
       coverAvailable: false,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 0, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 0,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
     const finalSnapshot = {
       ...shell,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 2, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 2,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
 
-    let serializerOptions:
-      | { onDiagnostic?: (event: Record<string, unknown>) => void }
-      | undefined
+    let serializerOptions: SerializerOptions | undefined
     env.serializerFactoryMock.mockImplementation((_, options) => {
       serializerOptions = options
       return {
@@ -360,6 +626,7 @@ describe('demo handleEncode progressive behavior', () => {
       resolveTextsMs: 7,
       buildSummaryMs: 1,
       textCount: 2,
+      imageCount: 1,
       missing: false
     })
     serializerOptions?.onDiagnostic?.({
@@ -371,16 +638,17 @@ describe('demo handleEncode progressive behavior', () => {
     await flushTicks()
 
     expect(
-      env.windowMock.__pdfParserDemoDiagnostics.lastEncode.pageDiagnostics
+      env.windowMock.__pdfParserDemoDiagnostics?.lastEncode.pageDiagnostics
     ).toEqual([
       expect.objectContaining({
         pageNumber: 1,
         resolveTextsMs: 7,
-        textCount: 2
+        textCount: 2,
+        imageCount: 1
       })
     ])
     expect(
-      env.windowMock.__pdfParserDemoDiagnostics.lastEncode.coverDiagnostic
+      env.windowMock.__pdfParserDemoDiagnostics?.lastEncode.coverDiagnostic
     ).toEqual(
       expect.objectContaining({
         available: true,
@@ -405,22 +673,48 @@ describe('demo handleEncode progressive behavior', () => {
       pageNumbers: [1, 2],
       coverAvailable: false,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 0, previewText: [] },
-        { number: 2, width: 100, height: 100, textCount: 0, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 0,
+          imageCount: 0,
+          previewText: []
+        },
+        {
+          number: 2,
+          width: 100,
+          height: 100,
+          textCount: 0,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
     const finalSnapshot = {
       ...shell,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 1, previewText: [] },
-        { number: 2, width: 100, height: 100, textCount: 1, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 1,
+          imageCount: 0,
+          previewText: []
+        },
+        {
+          number: 2,
+          width: 100,
+          height: 100,
+          textCount: 1,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
 
     const resolveDeferred = createDeferred<typeof finalSnapshot>()
-    let serializerOptions:
-      | { onProgress?: (event: Record<string, unknown>) => void }
-      | undefined
+    let serializerOptions: SerializerOptions | undefined
 
     env.serializerFactoryMock.mockImplementation((_, options) => {
       serializerOptions = options
@@ -487,7 +781,14 @@ describe('demo handleEncode progressive behavior', () => {
       pageNumbers: [1],
       coverAvailable: false,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 0, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 0,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
     const newShell = {
@@ -498,7 +799,14 @@ describe('demo handleEncode progressive behavior', () => {
       pageNumbers: [1],
       coverAvailable: false,
       pages: [
-        { number: 1, width: 100, height: 100, textCount: 0, previewText: [] }
+        {
+          number: 1,
+          width: 100,
+          height: 100,
+          textCount: 0,
+          imageCount: 0,
+          previewText: []
+        }
       ]
     }
 
@@ -532,8 +840,7 @@ describe('demo handleEncode progressive behavior', () => {
     await flushTicks()
     env.encodeButton.trigger('click')
     await flushTicks()
-
-    oldUpdate?.({
+    ;(oldUpdate as unknown as (snapshot: Snapshot) => void)({
       ...oldShell,
       pages: [{ ...oldShell.pages[0], textCount: 1 }]
     })
@@ -544,7 +851,7 @@ describe('demo handleEncode progressive behavior', () => {
     await flushTicks()
 
     const oldUpdateCalls = env.updateData.mock.calls.filter(
-      ([snapshot]) => snapshot.id === 'doc-old'
+      ([snapshot]) => (snapshot as Snapshot).id === 'doc-old'
     )
     expect(oldUpdateCalls).toHaveLength(0)
 
@@ -552,7 +859,7 @@ describe('demo handleEncode progressive behavior', () => {
       ...newShell,
       pages: [{ ...newShell.pages[0], textCount: 3 }]
     }
-    newUpdate?.(finalNew)
+    ;(newUpdate as unknown as (snapshot: Snapshot) => void)(finalNew)
     newDeferred.resolve(finalNew)
     await flushTicks()
 
@@ -580,5 +887,417 @@ describe('demo handleEncode progressive behavior', () => {
       'Encoding failed. See JSON output for details.'
     )
     expect(env.decodeButton.disabled).toBe(true)
+  })
+})
+
+describe('demo decode preview states', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('renders successful override decode as an inline PDF preview', async () => {
+    const env = await setupDemo()
+    await prepareDecodeContext(env)
+
+    env.decodePreviewElement.innerHTML =
+      'No previewable PDF was returned. Decode preview could not be generated.'
+    env.decodePreviewNoteElement.textContent = 'old decode error'
+    env.errorElement.textContent = 'old error'
+    env.decodeTextErrorElement.textContent = 'Invalid JSON syntax.'
+    env.renderPreviewFrame.mockClear()
+    env.setPreviewMessage.mockClear()
+
+    await renderDecodeSuccess(env)
+
+    expect(env.decodePreviewElement.innerHTML).toContain('blob:preview')
+    expect(env.decodePreviewElement.innerHTML).toContain('Decoded PDF preview')
+    expect(env.decodePreviewElement.innerHTML).not.toContain('No previewable')
+    expect(env.decodePreviewElement.innerHTML).not.toContain(
+      'Decode preview could not be generated'
+    )
+    expect(env.decodePreviewNoteElement.textContent).toBe(
+      'Preview generated from the latest successful encode result.'
+    )
+    expect(env.decodeTextErrorElement.textContent).toBe('')
+    expect(env.errorElement.textContent).toBe('')
+    expect(env.renderPreviewFrame).toHaveBeenCalledWith(
+      env.decodePreviewElement,
+      'blob:preview',
+      'Decoded PDF preview'
+    )
+  })
+
+  it('renders empty state for undefined and zero-byte decode results', async () => {
+    const emptyResults: Array<ArrayBuffer | undefined> = [
+      undefined,
+      new ArrayBuffer(0)
+    ]
+
+    for (const decoded of emptyResults) {
+      const env = await setupDemo()
+      await prepareDecodeContext(env)
+      env.decodeTextOverrideInput.value = JSON.stringify({ content: 'Empty' })
+      env.decodeMock.mockResolvedValue(decoded)
+      env.renderPreviewFrame.mockClear()
+
+      env.decodeButton.trigger('click')
+      await flushTicks()
+
+      expect(env.decodeStatusElement.dataset.state).toBe('empty')
+      expect(env.decodePreviewElement.innerHTML).toContain(
+        'No previewable PDF was returned for the current document.'
+      )
+      expect(env.decodePreviewElement.innerHTML).not.toContain('blob:preview')
+      expect(env.renderPreviewFrame).not.toHaveBeenCalled()
+    }
+  })
+
+  it('renders error state when override decode throws', async () => {
+    const env = await setupDemo()
+    await prepareDecodeContext(env)
+
+    env.decodeTextOverrideInput.value = JSON.stringify({ content: 'Error' })
+    env.decodeMock.mockRejectedValue(new Error('decode boom'))
+    env.renderPreviewFrame.mockClear()
+
+    env.decodeButton.trigger('click')
+    await flushTicks()
+
+    expect(env.decodeStatusElement.dataset.state).toBe('error')
+    expect(env.decodePreviewElement.innerHTML).toContain(
+      'Decode preview could not be generated.'
+    )
+    expect(env.decodePreviewElement.innerHTML).not.toContain('blob:preview')
+    expect(env.decodePreviewNoteElement.textContent).toBe('decode boom')
+    expect(env.decodeTextErrorElement.textContent).toBe('')
+    expect(env.renderPreviewFrame).not.toHaveBeenCalled()
+  })
+
+  it('clears previous decode preview and JSON error on file select', async () => {
+    const env = await setupDemo()
+    await prepareDecodeContext(env)
+    await renderDecodeSuccess(env)
+
+    env.decodeTextErrorElement.textContent = 'Invalid JSON syntax.'
+    const newFile = new File([new Uint8Array([1])], 'new.pdf', {
+      type: 'application/pdf'
+    })
+
+    env.fileInput.trigger('change', { target: { files: [newFile] } })
+
+    expect(env.decodeStatusElement.dataset.state).toBe('idle')
+    expect(env.decodePreviewElement.innerHTML).toContain(
+      'Decode preview will be available after the selected PDF is encoded.'
+    )
+    expect(env.decodePreviewElement.innerHTML).not.toContain('blob:preview')
+    expect(env.decodeTextErrorElement.textContent).toBe('')
+  })
+
+  it('clears previous decode preview and JSON error on sample load', async () => {
+    const env = await setupDemo()
+    await prepareDecodeContext(env)
+    await renderDecodeSuccess(env)
+    ;(
+      globalThis as unknown as { fetch: DemoFetchMock }
+    ).fetch.mockResolvedValueOnce({
+      ok: true,
+      blob: async () => new Blob([new Uint8Array([1])])
+    })
+    env.decodeTextErrorElement.textContent = 'Invalid JSON syntax.'
+
+    env.loadSampleButton.trigger('click')
+    await flushTicks()
+
+    expect(env.decodeStatusElement.dataset.state).toBe('idle')
+    expect(env.decodePreviewElement.innerHTML).toContain(
+      'Decode preview will be available after the sample is encoded.'
+    )
+    expect(env.decodePreviewElement.innerHTML).not.toContain('blob:preview')
+    expect(env.decodeTextErrorElement.textContent).toBe('')
+  })
+
+  it('clears previous decode preview and JSON error on re-encode', async () => {
+    const env = await setupDemo()
+    await prepareDecodeContext(env)
+    await renderDecodeSuccess(env)
+
+    env.decodeTextErrorElement.textContent = 'Invalid JSON syntax.'
+    env.encodeMock.mockImplementationOnce(() => new Promise<unknown>(() => {}))
+
+    env.encodeButton.trigger('click')
+
+    expect(env.decodeStatusElement.dataset.state).toBe('idle')
+    expect(env.decodePreviewElement.innerHTML).toContain(
+      'Decode preview cleared while a new encode is running.'
+    )
+    expect(env.decodePreviewElement.innerHTML).not.toContain('blob:preview')
+    expect(env.decodeTextErrorElement.textContent).toBe('')
+  })
+})
+
+describe('demo decode text override accessibility', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('associates the textarea with its visible label', () => {
+    const textareaTag = getElementTag(
+      encodeHtml,
+      'textarea',
+      'decode-text-override'
+    )
+
+    expect(encodeHtml).toContain(
+      '<label for="decode-text-override">Decode Text Override (JSON)</label>'
+    )
+    expect(textareaTag).toContain('id="decode-text-override"')
+  })
+
+  it('associates help text with the textarea description', () => {
+    const textareaTag = getElementTag(
+      encodeHtml,
+      'textarea',
+      'decode-text-override'
+    )
+    const helpTextTag = getElementTag(encodeHtml, 'p', 'decode-text-help')
+
+    expect(textareaTag).toContain('aria-describedby="decode-text-help"')
+    expect(helpTextTag).toContain('id="decode-text-help"')
+  })
+
+  it('announces JSON override errors assertively', () => {
+    const errorTag = getElementTag(encodeHtml, 'div', 'decode-text-error')
+
+    expect(errorTag).toContain('role="alert"')
+    expect(errorTag).toContain('aria-live="assertive"')
+  })
+
+  it('associates error message with the textarea via aria-errormessage', () => {
+    const textareaTag = getElementTag(
+      encodeHtml,
+      'textarea',
+      'decode-text-override'
+    )
+    const errorTag = getElementTag(encodeHtml, 'div', 'decode-text-error')
+
+    expect(textareaTag).toContain('aria-errormessage="decode-text-error"')
+    expect(errorTag).toContain('id="decode-text-error"')
+  })
+
+  it('keeps the textarea and enabled decode button focusable', async () => {
+    const env = await setupDemo()
+    await prepareDecodeContext(env)
+
+    env.decodeTextOverrideInput.focus()
+    env.decodeButton.focus()
+
+    expect(env.decodeTextOverrideInput.focus).toHaveBeenCalled()
+    expect(env.decodeButton.disabled).toBe(false)
+    expect(env.decodeButton.focus).toHaveBeenCalled()
+  })
+})
+
+describe('demo decode JSON override', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  async function prepareEncodeContext(
+    env: Awaited<ReturnType<typeof setupDemo>>
+  ) {
+    await prepareDecodeContext(env)
+  }
+
+  it('valid JSON override drives demo decode', async () => {
+    const env = await setupDemo()
+    await prepareEncodeContext(env)
+
+    const override = {
+      content: 'Demo Override',
+      fontSize: 24,
+      opacity: 0.5,
+      color: '#ff0000'
+    }
+    env.decodeTextOverrideInput.value = JSON.stringify(override)
+
+    env.decodeButton.trigger('click')
+    await flushTicks()
+
+    expect(env.decodeMock).toHaveBeenCalledTimes(1)
+    expect(env.decodeMock).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ text: override }),
+      expect.any(Function)
+    )
+    expect(env.decodeTextErrorElement.textContent).toBe('')
+    expect(env.decodeTextOverrideInput.setAttribute).toHaveBeenCalledWith(
+      'aria-invalid',
+      'false'
+    )
+  })
+
+  it('invalid JSON blocks decode and clears stale preview', async () => {
+    const env = await setupDemo()
+    await prepareEncodeContext(env)
+
+    env.decodeTextOverrideInput.value = 'not json'
+
+    env.decodeButton.trigger('click')
+    await flushTicks()
+
+    expect(env.decodeMock).not.toHaveBeenCalled()
+    expect(env.decodeTextErrorElement.textContent).toContain('Invalid JSON')
+    expect(env.decodeTextOverrideInput.setAttribute).toHaveBeenCalledWith(
+      'aria-invalid',
+      'true'
+    )
+  })
+
+  it('blank editor passes {} without text override', async () => {
+    const env = await setupDemo()
+    await prepareEncodeContext(env)
+
+    env.decodeTextOverrideInput.value = ''
+
+    env.decodeButton.trigger('click')
+    await flushTicks()
+
+    expect(env.decodeMock).toHaveBeenCalledTimes(1)
+    expect(env.decodeMock).toHaveBeenLastCalledWith(
+      expect.anything(),
+      {},
+      expect.any(Function)
+    )
+    expect(env.decodeTextErrorElement.textContent).toBe('')
+    expect(env.decodeTextOverrideInput.setAttribute).toHaveBeenCalledWith(
+      'aria-invalid',
+      'false'
+    )
+  })
+
+  it('whitespace-only editor passes {} without text override', async () => {
+    const env = await setupDemo()
+    await prepareEncodeContext(env)
+
+    env.decodeTextOverrideInput.value = '   \n\t  '
+
+    env.decodeButton.trigger('click')
+    await flushTicks()
+
+    expect(env.decodeMock).toHaveBeenCalledTimes(1)
+    expect(env.decodeMock).toHaveBeenLastCalledWith(
+      expect.anything(),
+      {},
+      expect.any(Function)
+    )
+    expect(env.decodeTextErrorElement.textContent).toBe('')
+    expect(env.decodeTextOverrideInput.setAttribute).toHaveBeenCalledWith(
+      'aria-invalid',
+      'false'
+    )
+  })
+
+  it('rejects unknown fields', async () => {
+    const env = await setupDemo()
+    await prepareEncodeContext(env)
+
+    env.decodeTextOverrideInput.value = JSON.stringify({ unknownField: 1 })
+
+    env.decodeButton.trigger('click')
+    await flushTicks()
+
+    expect(env.decodeMock).not.toHaveBeenCalled()
+    expect(env.decodeTextErrorElement.textContent).toContain('Unknown field')
+  })
+
+  it('rejects invalid color values', async () => {
+    const env = await setupDemo()
+    await prepareEncodeContext(env)
+
+    env.decodeTextOverrideInput.value = JSON.stringify({ color: 'red' })
+
+    env.decodeButton.trigger('click')
+    await flushTicks()
+
+    expect(env.decodeMock).not.toHaveBeenCalled()
+    expect(env.decodeTextErrorElement.textContent).toContain('Invalid color')
+  })
+
+  it('rejects non-number text override metrics', async () => {
+    const invalidMetrics = [
+      'fontSize',
+      'lineHeight',
+      'opacity',
+      'ascent',
+      'descent',
+      'skew'
+    ]
+
+    for (const field of invalidMetrics) {
+      const env = await setupDemo()
+      await prepareEncodeContext(env)
+
+      env.decodeTextOverrideInput.value = JSON.stringify({ [field]: '12' })
+
+      env.decodeButton.trigger('click')
+      await flushTicks()
+
+      expect(env.decodeMock).not.toHaveBeenCalled()
+      expect(env.decodeTextErrorElement.textContent).toContain(
+        `${field} must be a number`
+      )
+    }
+  })
+
+  it('rejects non-number polygon entries', async () => {
+    const env = await setupDemo()
+    await prepareEncodeContext(env)
+
+    env.decodeTextOverrideInput.value = JSON.stringify({ polygon: [0, '1'] })
+
+    env.decodeButton.trigger('click')
+    await flushTicks()
+
+    expect(env.decodeMock).not.toHaveBeenCalled()
+    expect(env.decodeTextErrorElement.textContent).toContain(
+      'polygon must be an array of numbers'
+    )
+  })
+
+  it('accepts transparent color', async () => {
+    const env = await setupDemo()
+    await prepareEncodeContext(env)
+
+    env.decodeTextOverrideInput.value = JSON.stringify({ color: 'transparent' })
+
+    env.decodeButton.trigger('click')
+    await flushTicks()
+
+    expect(env.decodeMock).toHaveBeenCalledTimes(1)
+    expect(env.decodeMock).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ text: { color: 'transparent' } }),
+      expect.any(Function)
+    )
+    expect(env.decodeTextErrorElement.textContent).toBe('')
+  })
+
+  it('clears JSON error on file select', async () => {
+    const env = await setupDemo()
+    await prepareEncodeContext(env)
+
+    env.decodeTextOverrideInput.value = 'bad'
+    env.decodeButton.trigger('click')
+    await flushTicks()
+    expect(env.decodeTextErrorElement.textContent).not.toBe('')
+
+    const newFile = new File([new Uint8Array([1])], 'new.pdf', {
+      type: 'application/pdf'
+    })
+    env.fileInput.trigger('change', { target: { files: [newFile] } })
+    expect(env.decodeTextErrorElement.textContent).toBe('')
+    expect(env.decodeTextOverrideInput.getAttribute('aria-invalid')).toBe(
+      'false'
+    )
   })
 })

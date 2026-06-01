@@ -1,0 +1,11 @@
+Command: yarn test --runTestsByPath src/__tests__/imageExtraction.test.ts
+Result: PASS
+
+Covered test:
+- extractImagesFromPage returns deterministic warnings for unsupported mask and pattern operators
+
+Assertions:
+- OPS.paintImageMaskXObject returns a warning record without throwing.
+- OPS.setFillColorN returns a pattern/advanced color warning record without throwing.
+- Unsupported operators do not call page.objs.get().
+- Warning operator names are deterministic: paintImageMaskXObject and setFillColorN.

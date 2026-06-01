@@ -1,0 +1,4 @@
+Task 10 mixed fixture evidence
+Command: yarn test --runTestsByPath src/__tests__/pdfParserIntegration.test.ts
+Result: PASS src/__tests__/pdfParserIntegration.test.ts; Test Suites: 1 passed, 1 total; Tests: 49 passed, 49 total.
+Coverage added: getContent mixed content asserts IntermediateText + IntermediateImage using test_github.pdf; image field validation uses deterministic IntermediateImage fixture with data:image src, 4-point polygon, numeric opacity; decode mixed ordered content still asserts /Subtype /Image.

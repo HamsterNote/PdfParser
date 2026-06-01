@@ -339,10 +339,6 @@ describe('PdfParser outline mapping methods', () => {
     })
 
     it('当 getPageIndex 抛出错误时应该返回 undefined', async () => {
-      const consoleErrorSpy = jest
-        .spyOn(console, 'error')
-        .mockImplementation(() => {})
-
       const mockPdf = {
         getPageIndex: jest
           .fn<PDFDocumentProxy['getPageIndex']>()
@@ -359,9 +355,6 @@ describe('PdfParser outline mapping methods', () => {
       )
 
       expect(result).toBeUndefined()
-      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.any(Error))
-
-      consoleErrorSpy.mockRestore()
     })
   })
 

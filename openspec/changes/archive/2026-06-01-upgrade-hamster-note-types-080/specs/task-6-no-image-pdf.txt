@@ -1,0 +1,14 @@
+Task 6 no-image PDF evidence
+
+Scenario:
+- A structured text-only IntermediateDocument is decoded to PDF, then encoded again.
+
+Verification in src/__tests__/pdfParserIntegration.test.ts:
+- page.getContent() returns an array.
+- image filter (`src` in item / IntermediateImage) length is 0.
+- text filter (`content` in item / IntermediateText) is non-empty.
+- every text item has opacity === 1.
+
+Commands:
+- yarn test --runTestsByPath src/__tests__/pdfParserIntegration.test.ts -> PASS (42 tests)
+- yarn test -> PASS (26 suites, 264 tests)

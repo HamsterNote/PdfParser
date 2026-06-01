@@ -1,0 +1,16 @@
+Task 6 mixed content encode evidence
+
+Implementation:
+- src/pdfParser.ts buildIntermediatePage maps text content, sets each IntermediateText.opacity to 1 when unset, extracts images via PdfParser.extractImagesFromPage(), converts every ImageExtractionRecord to IntermediateImage({ id, src: record.src ?? "", polygon, opacity }), and stores [...texts, ...images] as IntermediateContent[].
+- setGetContent now returns the same combined content array. Existing outline/page-map/thumbnail behavior unchanged.
+
+Verification:
+- yarn test --runTestsByPath src/__tests__/pdfParserIntegration.test.ts -> PASS (42 tests)
+- yarn test -> PASS (26 suites, 264 tests)
+- lsp_diagnostics src/pdfParser.ts -> clean
+- lsp_diagnostics src/__tests__/pdfParserIntegration.test.ts -> clean
+
+Integration assertions:
+- test_github.pdf page.getContent() returns an array.
+- Text items are present and all have opacity === 1.
+- Image items are present with id, string src (empty placeholder allowed), polygon, and numeric opacity.

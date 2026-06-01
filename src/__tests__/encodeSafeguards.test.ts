@@ -1,12 +1,12 @@
-import { describe, expect, it, jest, beforeAll } from '@jest/globals'
 import { PdfParser } from '@PdfParser'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { beforeAll, describe, expect, it, jest } from '@jest/globals'
 import type {
   PDFDocumentProxy,
   PDFPageProxy
 } from 'pdfjs-dist/types/src/display/api'
-import * as fs from 'fs'
-import * as path from 'path'
-import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -16,16 +16,89 @@ describe('PdfParser encode safeguards', () => {
     const resolveEncodeOptions = (
       PdfParser as unknown as {
         resolveEncodeOptions: (
-          options: { maxPages?: number; pageLoadTimeoutMs?: number },
+          options: {
+            maxPages?: number
+            pages?: number[]
+            pageLoadTimeoutMs?: number
+          },
           totalPages: number
-        ) => { maxPages: number; pageLoadTimeoutMs: number }
+        ) => { maxPages: number; pages: number[]; pageLoadTimeoutMs: number }
       }
     ).resolveEncodeOptions.bind(PdfParser)
 
     const options = resolveEncodeOptions({}, 350)
 
     expect(options.maxPages).toBe(350)
+    expect(options.pages).toEqual([])
     expect(options.pageLoadTimeoutMs).toBe(30000)
+  })
+
+  it('encodes only specified valid pages and ignores maxPages', async () => {
+    const getPage = jest.fn(async (pageNumber: number) => {
+      return {
+        getViewport: () => ({
+          width: 100 + pageNumber,
+          height: 200 + pageNumber
+        }),
+        getTextContent: async () => ({
+          items: [],
+          styles: Object.create(null)
+        }),
+        cleanup: jest.fn()
+      } as unknown as PDFPageProxy
+    })
+
+    const pdf = {
+      numPages: 10,
+      getPage
+    } as unknown as PDFDocumentProxy
+
+    const resolveEncodeOptions = (
+      PdfParser as unknown as {
+        resolveEncodeOptions: (
+          options: {
+            maxPages?: number
+            pages?: number[]
+            pageLoadTimeoutMs?: number
+          },
+          totalPages: number
+        ) => { maxPages: number; pages: number[]; pageLoadTimeoutMs: number }
+      }
+    ).resolveEncodeOptions.bind(PdfParser)
+    const buildPageInfoList = (
+      PdfParser as unknown as {
+        buildPageInfoList: (
+          pdf: PDFDocumentProxy,
+          pdfId: string,
+          options: {
+            maxPages: number
+            pages: number[]
+            pageLoadTimeoutMs: number
+          }
+        ) => Promise<
+          Array<{
+            pageNumber: number
+          }>
+        >
+      }
+    ).buildPageInfoList.bind(PdfParser)
+
+    const options = resolveEncodeOptions(
+      { maxPages: 1, pages: [3, 1, 99, 2.5, -1], pageLoadTimeoutMs: 1000 },
+      pdf.numPages
+    )
+
+    expect(options.pages).toEqual([3, 1])
+    expect(() =>
+      resolveEncodeOptions({ pages: [0, 11, 1.5] }, pdf.numPages)
+    ).toThrow(RangeError)
+
+    const result = await buildPageInfoList(pdf, 'pdf-id', options)
+
+    expect(getPage).toHaveBeenCalledTimes(2)
+    expect(getPage).toHaveBeenNthCalledWith(1, 3)
+    expect(getPage).toHaveBeenNthCalledWith(2, 1)
+    expect(result.map((page) => page.pageNumber)).toEqual([3, 1])
   })
 
   it('limits page info scan by maxPages', async () => {
@@ -53,7 +126,11 @@ describe('PdfParser encode safeguards', () => {
         buildPageInfoList: (
           pdf: PDFDocumentProxy,
           pdfId: string,
-          options: { maxPages: number; pageLoadTimeoutMs: number }
+          options: {
+            maxPages: number
+            pages: number[]
+            pageLoadTimeoutMs: number
+          }
         ) => Promise<
           Array<{
             id: string
@@ -67,6 +144,7 @@ describe('PdfParser encode safeguards', () => {
 
     const result = await buildPageInfoList(pdf, 'pdf-id', {
       maxPages: 5,
+      pages: [],
       pageLoadTimeoutMs: 1000
     })
 
@@ -90,7 +168,11 @@ describe('PdfParser encode safeguards', () => {
         buildPageInfoList: (
           pdf: PDFDocumentProxy,
           pdfId: string,
-          options: { maxPages: number; pageLoadTimeoutMs: number }
+          options: {
+            maxPages: number
+            pages: number[]
+            pageLoadTimeoutMs: number
+          }
         ) => Promise<unknown>
       }
     ).buildPageInfoList.bind(PdfParser)
@@ -98,6 +180,7 @@ describe('PdfParser encode safeguards', () => {
     await expect(
       buildPageInfoList(pdf, 'pdf-id', {
         maxPages: 1,
+        pages: [],
         pageLoadTimeoutMs: 10
       })
     ).rejects.toThrow('Timed out while loading page 1 during PDF encode')
@@ -126,7 +209,11 @@ describe('PdfParser encode safeguards', () => {
         buildPageInfoList: (
           pdf: PDFDocumentProxy,
           pdfId: string,
-          options: { maxPages: number; pageLoadTimeoutMs: number },
+          options: {
+            maxPages: number
+            pages: number[]
+            pageLoadTimeoutMs: number
+          },
           onProgress?: (event: (typeof events)[number]) => void
         ) => Promise<
           Array<{
@@ -142,6 +229,7 @@ describe('PdfParser encode safeguards', () => {
         'pdf-id',
         {
           maxPages: 1,
+          pages: [],
           pageLoadTimeoutMs: 10
         },
         (event) => {
@@ -184,8 +272,12 @@ describe('PdfParser encode safeguards', () => {
         (typeof PdfParser)['encode']
       >[2]
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const encodePromise = PdfParser.encode(pdfBuffer, invalidReporter as any)
+      const encodePromise = PdfParser.encode(
+        pdfBuffer,
+        invalidReporter as unknown as Parameters<
+          (typeof PdfParser)['encode']
+        >[1]
+      )
       await expect(encodePromise).rejects.toThrow(
         'PdfParser.encode() no longer accepts a progress function as the second argument. ' +
           'Use PdfParser.encode(input, options, reporter) instead.'
@@ -200,9 +292,7 @@ describe('PdfParser encode safeguards', () => {
         }
       }) as unknown as Parameters<(typeof PdfParser)['encode']>[2]
 
-      // prettier-ignore
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const encodePromise = PdfParser.encode(pdfBuffer, {}, failingReporter as any)
+      const encodePromise = PdfParser.encode(pdfBuffer, {}, failingReporter)
       await expect(encodePromise).rejects.toThrow(error)
     })
   })

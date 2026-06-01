@@ -377,19 +377,10 @@
   dependencies:
     "@hamster-note/types" "^0.5.1"
 
-"@hamster-note/types@^0.5.1":
-  version "0.5.5"
-  resolved "https://registry.npmmirror.com/@hamster-note/types/-/types-0.5.5.tgz#7131d33bce2a92a2e14769f58f523f644d2b5970"
-  integrity sha512-cuSmkhOnF6UGg73WLO82kS6Hpn3qQE3MUPpEPx6H+Ht7laTq1jbMzbuxln1TZ5nBw2h+WOhJ7F63Ovvy/vn8XQ==
-  dependencies:
-    class-transformer "^0.5.1"
-    class-validator "^0.14.1"
-    reflect-metadata "^0.2.2"
-
-"@hamster-note/types@^0.7.0":
-  version "0.7.0"
-  resolved "https://registry.npmmirror.com/@hamster-note/types/-/types-0.7.0.tgz"
-  integrity sha512-BKC0R3kQ0gkHZFIopqygIaQMJogVmxLTolpMbuyr7dMOLYlwRS3/GwRRaMW8quvDUUA76wBnORg4CDAfnlSwAg==
+"@hamster-note/types@0.8.0", "@hamster-note/types@^0.5.1":
+  version "0.8.0"
+  resolved "https://registry.npmjs.org/@hamster-note/types/-/types-0.8.0.tgz#fb8b318985fcaec28a8665526539a5e2ab84f233"
+  integrity sha512-NNcKdcCchBU4x/gFksXUzFZ1WV37HzBzRk6MEFWhVyHBOk5G7niuXRuP8frPdboQkWVQrRtnZFuvXeniWjphrg==
 
 "@humanfs/core@^0.19.1":
   version "0.19.1"
@@ -1010,11 +1001,6 @@
   resolved "https://registry.npmjs.org/@types/stack-utils/-/stack-utils-2.0.3.tgz"
   integrity sha512-9aEbYZ3TbYMznPdcdr3SmIrLXwC/AKZXQeCf9Pgao5CKb8CyHuEX5jzWPTkvregvhRJHcpRO6BFoGW9ycaOkYw==
 
-"@types/validator@^13.15.3":
-  version "13.15.10"
-  resolved "https://registry.npmmirror.com/@types/validator/-/validator-13.15.10.tgz#742b77ec34d58554b94a76a14cef30d59e3c16b9"
-  integrity sha512-T8L6i7wCuyoK8A/ZeLYt1+q0ty3Zb9+qbSSvrIVitzT3YjZqkTZ40IbRsPanlB4h1QB3JVL1SYCdR6ngtFYcuA==
-
 "@types/yargs-parser@*":
   version "21.0.3"
   resolved "https://registry.npmjs.org/@types/yargs-parser/-/yargs-parser-21.0.3.tgz"
@@ -1634,20 +1620,6 @@ cjs-module-lexer@^2.1.0:
   version "2.2.0"
   resolved "https://registry.npmjs.org/cjs-module-lexer/-/cjs-module-lexer-2.2.0.tgz"
   integrity sha512-4bHTS2YuzUvtoLjdy+98ykbNB5jS0+07EvFNXerqZQJ89F7DI6ET7OQo/HJuW6K0aVsKA9hj9/RVb2kQVOrPDQ==
-
-class-transformer@^0.5.1:
-  version "0.5.1"
-  resolved "https://registry.npmmirror.com/class-transformer/-/class-transformer-0.5.1.tgz#24147d5dffd2a6cea930a3250a677addf96ab336"
-  integrity sha512-SQa1Ws6hUbfC98vKGxZH3KFY0Y1lm5Zm0SY8XX9zbK7FJCyVEac3ATW0RIpwzW+oOfmHE5PMPufDG9hCfoEOMw==
-
-class-validator@^0.14.1:
-  version "0.14.4"
-  resolved "https://registry.npmmirror.com/class-validator/-/class-validator-0.14.4.tgz#d0084ae847a96264ad5158451a4e66c1c544de96"
-  integrity sha512-AwNusCCam51q703dW82x95tOqQp6oC9HNUl724KxJJOfnKscI8dOloXFgyez7LbTTKWuRBA37FScqVbJEoq8Yw==
-  dependencies:
-    "@types/validator" "^13.15.3"
-    libphonenumber-js "^1.11.1"
-    validator "^13.15.22"
 
 cliui@^8.0.1:
   version "8.0.1"
@@ -3354,11 +3326,6 @@ levn@^0.4.1:
     prelude-ls "^1.2.1"
     type-check "~0.4.0"
 
-libphonenumber-js@^1.11.1:
-  version "1.12.41"
-  resolved "https://registry.npmmirror.com/libphonenumber-js/-/libphonenumber-js-1.12.41.tgz#d0eed671df1a3fe1338430ecd1c3943b9aac8844"
-  integrity sha512-lsmMmGXBxXIK/VMLEj0kL6MtUs1kBGj1nTCzi6zgQoG1DEwqwt2DQyHxcLykceIxAnfE3hya7NuIh6PpC6S3fA==
-
 lines-and-columns@^1.1.6:
   version "1.2.4"
   resolved "https://registry.npmjs.org/lines-and-columns/-/lines-and-columns-1.2.4.tgz"
@@ -3846,11 +3813,6 @@ refa@^0.12.0, refa@^0.12.1:
   dependencies:
     "@eslint-community/regexpp" "^4.8.0"
 
-reflect-metadata@^0.2.2:
-  version "0.2.2"
-  resolved "https://registry.npmmirror.com/reflect-metadata/-/reflect-metadata-0.2.2.tgz#400c845b6cba87a21f2c65c4aeb158f4fa4d9c5b"
-  integrity sha512-urBwgfrvVP/eAyXx4hluJivBKzuEbSQs9rKWCrCkbSxNv8mxPcUZKeuoF3Uy4mJl3Lwprp6yy5/39VWigZ4K6Q==
-
 reflect.getprototypeof@^1.0.6, reflect.getprototypeof@^1.0.9:
   version "1.0.10"
   resolved "https://registry.npmjs.org/reflect.getprototypeof/-/reflect.getprototypeof-1.0.10.tgz"
@@ -4168,7 +4130,16 @@ string-length@^4.0.2:
     char-regex "^1.0.2"
     strip-ansi "^6.0.0"
 
-"string-width-cjs@npm:string-width@^4.2.0", string-width@^4.1.0, string-width@^4.2.0, string-width@^4.2.3:
+"string-width-cjs@npm:string-width@^4.2.0":
+  version "4.2.3"
+  resolved "https://registry.npmjs.org/string-width/-/string-width-4.2.3.tgz"
+  integrity sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==
+  dependencies:
+    emoji-regex "^8.0.0"
+    is-fullwidth-code-point "^3.0.0"
+    strip-ansi "^6.0.1"
+
+string-width@^4.1.0, string-width@^4.2.0, string-width@^4.2.3:
   version "4.2.3"
   resolved "https://registry.npmjs.org/string-width/-/string-width-4.2.3.tgz"
   integrity sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==
@@ -4254,7 +4225,14 @@ string.prototype.trimstart@^1.0.8:
     define-properties "^1.2.1"
     es-object-atoms "^1.0.0"
 
-"strip-ansi-cjs@npm:strip-ansi@^6.0.1", strip-ansi@^6.0.0, strip-ansi@^6.0.1:
+"strip-ansi-cjs@npm:strip-ansi@^6.0.1":
+  version "6.0.1"
+  resolved "https://registry.npmjs.org/strip-ansi/-/strip-ansi-6.0.1.tgz"
+  integrity sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==
+  dependencies:
+    ansi-regex "^5.0.1"
+
+strip-ansi@^6.0.0, strip-ansi@^6.0.1:
   version "6.0.1"
   resolved "https://registry.npmjs.org/strip-ansi/-/strip-ansi-6.0.1.tgz"
   integrity sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==
@@ -4533,11 +4511,6 @@ v8-to-istanbul@^9.0.1:
     "@types/istanbul-lib-coverage" "^2.0.1"
     convert-source-map "^2.0.0"
 
-validator@^13.15.22:
-  version "13.15.35"
-  resolved "https://registry.npmmirror.com/validator/-/validator-13.15.35.tgz#81cf455c51f15b69d8d340be5914f3fab00dbf7f"
-  integrity sha512-TQ5pAGhd5whStmqWvYF4OjQROlmv9SMFVt37qoCBdqRffuuklWYQlCNnEs2ZaIBD1kZRNnikiZOS1eqgkar0iw==
-
 walker@^1.0.8:
   version "1.0.8"
   resolved "https://registry.npmjs.org/walker/-/walker-1.0.8.tgz"
@@ -4622,7 +4595,16 @@ wordwrap@^1.0.0:
   resolved "https://registry.npmjs.org/wordwrap/-/wordwrap-1.0.0.tgz"
   integrity sha512-gvVzJFlPycKc5dZN4yPkP8w7Dc37BtP1yczEneOb4uq34pXZcvrtRTmWV8W+Ume+XCxKgbjM+nevkyFPMybd4Q==
 
-"wrap-ansi-cjs@npm:wrap-ansi@^7.0.0", wrap-ansi@^7.0.0:
+"wrap-ansi-cjs@npm:wrap-ansi@^7.0.0":
+  version "7.0.0"
+  resolved "https://registry.npmjs.org/wrap-ansi/-/wrap-ansi-7.0.0.tgz"
+  integrity sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==
+  dependencies:
+    ansi-styles "^4.0.0"
+    string-width "^4.1.0"
+    strip-ansi "^6.0.0"
+
+wrap-ansi@^7.0.0:
   version "7.0.0"
   resolved "https://registry.npmjs.org/wrap-ansi/-/wrap-ansi-7.0.0.tgz"
   integrity sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==

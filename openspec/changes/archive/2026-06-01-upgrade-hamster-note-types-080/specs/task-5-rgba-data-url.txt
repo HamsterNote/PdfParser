@@ -1,0 +1,8 @@
+Task 5 RGBA data URL evidence
+
+- Implemented `PdfParser.convertRawImageToDataUrl(rawImageData: RawImageData): string | undefined` in `src/pdfParser.ts`.
+- RGBA kind=3 path accepts `Uint8Array` with 4 bytes per pixel and emits `data:image/png;base64,...`.
+- RGB kind=2 path expands to RGBA by adding alpha=255 before PNG encoding.
+- Grayscale kind=1 path expands gray to RGB and adds alpha=255.
+- Minimal PNG encoder is inline pure TypeScript/JavaScript: PNG chunks + zlib store blocks + Adler-32 + CRC-32.
+- Targeted tests live in `src/__tests__/imageDataUrlConversion.test.ts` and validate 2x1 RGBA/RGB PNG data URLs plus unsupported/empty fallback.

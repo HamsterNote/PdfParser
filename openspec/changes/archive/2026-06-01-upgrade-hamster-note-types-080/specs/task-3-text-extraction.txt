@@ -1,0 +1,16 @@
+Task 3 text extraction evidence
+Date: 2026-05-23T22:04:50+08:00
+
+Command:
+yarn test --runTestsByPath src/__tests__/mapTextContentToIntermediate.test.ts
+
+Result:
+PASS src/__tests__/mapTextContentToIntermediate.test.ts
+Test Suites: 1 passed, 1 total
+Tests: 42 passed, 42 total
+
+Command:
+yarn check:types
+
+Result:
+Exited 2 with existing project type errors. No remaining errors reference removed page text APIs getTexts/setGetTexts/hasLoadedTexts/.texts in active src/demo code. Relevant migration-related files pass LSP diagnostics.

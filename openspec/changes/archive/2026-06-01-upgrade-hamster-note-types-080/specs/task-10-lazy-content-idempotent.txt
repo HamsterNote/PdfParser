@@ -1,0 +1,4 @@
+Task 10 lazy getContent idempotency evidence
+Command: yarn test --runTestsByPath src/__tests__/pdfParserIntegration.test.ts
+Result: PASS src/__tests__/pdfParserIntegration.test.ts; Test Suites: 1 passed, 1 total; Tests: 49 passed, 49 total.
+Coverage added: page.getContent() called twice on encoded test_github.pdf page 1; results are equal and the same cached array; mixed text/image content remains present. No-image PDF and unsupported mask/pattern/SMask fallback tests pass in same run.

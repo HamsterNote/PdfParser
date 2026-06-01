@@ -1,0 +1,218 @@
+Scenario 2: document-parser compatibility
+Installed @hamster-note/document-parser package metadata:
+{
+  "version": "0.2.1",
+  "dependencies": {
+    "@hamster-note/types": "^0.5.1"
+  }
+}
+
+Installed @hamster-note/types metadata:
+{
+  "version": "0.8.0",
+  "types": "dist/index.d.ts"
+}
+
+Confirmed @hamster-note/types@0.8.0 declarations:
+- IntermediateImage: dist/HamsterDocument/IntermediateImage.d.ts exports IntermediateImage class.
+- IntermediateContent: dist/HamsterDocument/IntermediatePage.d.ts line defines IntermediateContent = IntermediateText | IntermediateImage.
+- IntermediatePage.getContent(): Promise<IntermediateContent[]> exists.
+- IntermediatePage.hasLoadedContent getter exists.
+- IntermediatePage.getThumbnail(scale?): Promise<IntermediateImage | undefined> exists.
+- IntermediateDocument.getCover(scale?): Promise<IntermediateImage | undefined> exists.
+- Polygon utilities exist in dist/utils/polygon.d.ts: Polygon, isFiniteCoordinate, parsePolygonPoint, normalizePolygon.
+
+Command: yarn check:types
+Result: exit 2. No dependency-resolution error, but source/tests still target old API and document-parser dependency range is incompatible with forced resolution:
+- @hamster-note/document-parser@0.2.1 declares dependency @hamster-note/types@^0.5.1.
+- yarn install/why reports: Resolution field "@hamster-note/types@0.8.0" is incompatible with requested version "@hamster-note/types@^0.5.1".
+- Representative migration errors: IntermediatePage.texts/getTexts/textsLoaded/setGetTexts no longer exist; getThumbnail/getCover must return IntermediateImage | undefined instead of string; polygon type is mutable Polygon.
+
+Full yarn check:types output follows:
+yarn run v1.22.22
+$ tsc --noEmit
+demo/__tests__/demo.test.ts(150,38): error TS7016: Could not find a declaration file for module '../../dist/browser.js'. '/home/zhangxiao/frontend/worktrees/PdfParser/feature-demo-single-page/dist/browser.js' implicitly has an 'any' type.
+demo/__tests__/demo.test.ts(159,16): error TS7016: Could not find a declaration file for module '../demo.js'. '/home/zhangxiao/frontend/worktrees/PdfParser/feature-demo-single-page/demo/demo.js' implicitly has an 'any' type.
+demo/__tests__/demo.test.ts(231,38): error TS2345: Argument of type '{ id: string; title: string; }' is not assignable to parameter of type 'never'.
+demo/__tests__/demo.test.ts(242,5): error TS2349: This expression is not callable.
+  Type 'never' has no call signatures.
+demo/__tests__/demo.test.ts(257,12): error TS18048: 'env.windowMock.__pdfParserDemoDiagnostics' is possibly 'undefined'.
+demo/__tests__/demo.test.ts(290,44): error TS2345: Argument of type '{ pages: { number: number; width: number; height: number; textCount: number; previewText: never[]; }[]; id: string; title: string; pageCount: number; hasOutline: boolean; pageNumbers: number[]; coverAvailable: boolean; }' is not assignable to parameter of type 'never'.
+demo/__tests__/demo.test.ts(292,38): error TS2345: Argument of type '{ id: string; }' is not assignable to parameter of type 'never'.
+demo/__tests__/demo.test.ts(339,7): error TS2322: Type 'unknown' is not assignable to type '{ onDiagnostic?: ((event: Record<string, unknown>) => void) | undefined; } | undefined'.
+demo/__tests__/demo.test.ts(347,7): error TS2349: This expression is not callable.
+  Type '{}' has no call signatures.
+demo/__tests__/demo.test.ts(348,7): error TS2349: This expression is not callable.
+  Type '{}' has no call signatures.
+demo/__tests__/demo.test.ts(374,7): error TS18048: 'env.windowMock.__pdfParserDemoDiagnostics' is possibly 'undefined'.
+demo/__tests__/demo.test.ts(383,7): error TS18048: 'env.windowMock.__pdfParserDemoDiagnostics' is possibly 'undefined'.
+demo/__tests__/demo.test.ts(426,7): error TS2322: Type 'unknown' is not assignable to type '{ onProgress?: ((event: Record<string, unknown>) => void) | undefined; } | undefined'.
+demo/__tests__/demo.test.ts(434,7): error TS2349: This expression is not callable.
+  Type '{}' has no call signatures.
+demo/__tests__/demo.test.ts(435,7): error TS2349: This expression is not callable.
+  Type '{}' has no call signatures.
+demo/__tests__/demo.test.ts(512,30): error TS2345: Argument of type '{ id: string; title: string; }' is not assignable to parameter of type 'never'.
+demo/__tests__/demo.test.ts(513,30): error TS2345: Argument of type '{ id: string; title: string; }' is not assignable to parameter of type 'never'.
+demo/__tests__/demo.test.ts(536,5): error TS2349: This expression is not callable.
+  Type 'never' has no call signatures.
+demo/__tests__/demo.test.ts(547,23): error TS18046: 'snapshot' is of type 'unknown'.
+demo/__tests__/demo.test.ts(555,5): error TS2349: This expression is not callable.
+  Type 'never' has no call signatures.
+demo/__tests__/demo.test.ts(569,38): error TS2345: Argument of type 'Error' is not assignable to parameter of type 'never'.
+demo/__tests__/demoDocumentSerialization.test.ts(9,8): error TS7016: Could not find a declaration file for module '../demoDocumentSerialization'. '/home/zhangxiao/frontend/worktrees/PdfParser/feature-demo-single-page/demo/demoDocumentSerialization.js' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(11,25): error TS7031: Binding element 'id' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(11,29): error TS7031: Binding element 'title' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(11,36): error TS7031: Binding element 'pages' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(12,30): error TS7006: Parameter 'p' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(18,10): error TS7006: Parameter 't' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(48,9): error TS2353: Object literal may only specify known properties, and 'getTextsFn' does not exist in type 'Omit<IntermediatePageSerialized, "texts" | "content" | "paragraphs"> & { content?: IntermediateContent[] | IntermediateContentSerialized[] | undefined; texts?: IntermediateText[] | ... 1 more ... | undefined; paragraphs?: IntermediateParagraph[] | ... 1 more ... | undefined; } & { ...; }'.
+demo/__tests__/demoDocumentSerialization.test.ts(59,33): error TS7006: Parameter 'e' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(59,59): error TS7006: Parameter 'a' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(59,62): error TS7006: Parameter 'b' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(61,36): error TS7006: Parameter 'n' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(62,37): error TS7006: Parameter 'e' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(65,40): error TS7006: Parameter 'n' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(66,37): error TS7006: Parameter 'e' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(70,45): error TS7006: Parameter 'e' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(77,5): error TS2740: Type '{ _entries: any; readonly pageCount: any; readonly pageNumbers: any; getPageByPageNumber: (n: any) => any; getPageSizeByPageNumber: (n: any) => any; getPages: () => Promise<any[]>; }' is missing the following properties from type 'IntermediatePageMap': entryById, entryByPageNumber, registerEntry, resolve, and 2 more.
+demo/__tests__/demoDocumentSerialization.test.ts(82,10): error TS6133: '_makeDocumentWithDeferredTexts' is declared but its value is never read.
+demo/__tests__/demoDocumentSerialization.test.ts(82,43): error TS7031: Binding element 'id' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(82,47): error TS7031: Binding element 'title' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(82,54): error TS7031: Binding element 'pages' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(83,30): error TS7006: Parameter 'p' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(85,8): error TS7006: Parameter 't' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(120,11): error TS2353: Object literal may only specify known properties, and 'getTextsFn' does not exist in type 'Omit<IntermediatePageSerialized, "texts" | "content" | "paragraphs"> & { content?: IntermediateContent[] | IntermediateContentSerialized[] | undefined; texts?: IntermediateText[] | ... 1 more ... | undefined; paragraphs?: IntermediateParagraph[] | ... 1 more ... | undefined; } & { ...; }'.
+demo/__tests__/demoDocumentSerialization.test.ts(122,14): error TS2339: Property 'textsLoaded' does not exist on type 'IntermediatePage'.
+demo/__tests__/demoDocumentSerialization.test.ts(134,33): error TS7006: Parameter 'e' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(134,59): error TS7006: Parameter 'a' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(134,62): error TS7006: Parameter 'b' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(136,36): error TS7006: Parameter 'n' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(137,37): error TS7006: Parameter 'e' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(140,40): error TS7006: Parameter 'n' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(141,37): error TS7006: Parameter 'e' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(145,45): error TS7006: Parameter 'e' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(152,5): error TS2740: Type '{ _entries: any; readonly pageCount: any; readonly pageNumbers: any; getPageByPageNumber: (n: any) => any; getPageSizeByPageNumber: (n: any) => any; getPages: () => Promise<any[]>; }' is missing the following properties from type 'IntermediatePageMap': entryById, entryByPageNumber, registerEntry, resolve, and 2 more.
+demo/__tests__/demoDocumentSerialization.test.ts(158,19): error TS7006: Parameter 'content' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(182,28): error TS7006: Parameter 'a' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(182,31): error TS7006: Parameter 'b' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(192,20): error TS7006: Parameter 'a' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(192,23): error TS7006: Parameter 'b' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(215,35): error TS7006: Parameter 'page' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(215,41): error TS7006: Parameter 'texts' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(221,29): error TS7006: Parameter 'text' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(258,36): error TS7006: Parameter 'n' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(262,40): error TS7006: Parameter 'n' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(277,10): error TS2339: Property 'textsLoaded' does not exist on type 'IntermediatePage'.
+demo/__tests__/demoDocumentSerialization.test.ts(278,10): error TS2339: Property 'setGetTexts' does not exist on type 'IntermediatePage'.
+demo/__tests__/demoDocumentSerialization.test.ts(286,28): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+demo/__tests__/demoDocumentSerialization.test.ts(310,36): error TS7006: Parameter 'n' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(314,40): error TS7006: Parameter 'n' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(418,9): error TS2740: Type '{ _entries: { id: string; pageNumber: number; size: { x: number; y: number; }; loader: () => Promise<IntermediatePage>; }[]; readonly pageCount: number; readonly pageNumbers: number[]; getPageByPageNumber: (n: any) => Promise<...> | undefined; getPageSizeByPageNumber: (n: any) => { ...; } | undefined; getPages: () =...' is missing the following properties from type 'IntermediatePageMap': entryById, entryByPageNumber, registerEntry, resolve, and 2 more.
+demo/__tests__/demoDocumentSerialization.test.ts(423,19): error TS7006: Parameter 'snap' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(464,22): error TS7006: Parameter 'event' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(525,28): error TS7006: Parameter 'snapshot' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(572,9): error TS2740: Type '{ _entries: { id: string; pageNumber: number; size: { x: number; y: number; }; loader: () => Promise<IntermediatePage>; }[]; readonly pageCount: number; readonly pageNumbers: number[]; getPageByPageNumber: (n: any) => Promise<...> | undefined; getPageSizeByPageNumber: (n: any) => { ...; } | undefined; getPages: () =...' is missing the following properties from type 'IntermediatePageMap': entryById, entryByPageNumber, registerEntry, resolve, and 2 more.
+demo/__tests__/demoDocumentSerialization.test.ts(586,19): error TS7006: Parameter 'snap' implicitly has an 'any' type.
+demo/__tests__/demoDocumentSerialization.test.ts(612,16): error TS2339: Property 'getTexts' does not exist on type 'IntermediatePage'.
+demo/__tests__/demoDocumentSerialization.test.ts(614,25): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+demo/__tests__/demoDocumentSerialization.test.ts(654,44): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+demo/__tests__/demoDocumentSerialization.test.ts(655,20): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+demo/__tests__/demoDocumentSerialization.test.ts(656,26): error TS2339: Property 'getTexts' does not exist on type 'IntermediatePage'.
+demo/__tests__/demoDocumentSerialization.test.ts(681,11): error TS2353: Object literal may only specify known properties, and '_entries' does not exist in type 'IntermediatePageMap'.
+demo/__tests__/demoDocumentSerialization.test.ts(707,11): error TS2353: Object literal may only specify known properties, and '_entries' does not exist in type 'IntermediatePageMap'.
+demo/__tests__/demoDocumentSerialization.test.ts(738,40): error TS2322: Type 'Promise<string>' is not assignable to type 'Promise<IntermediateImage | undefined>'.
+  Type 'string' is not assignable to type 'IntermediateImage'.
+demo/__tests__/demoDocumentSerialization.test.ts(743,9): error TS2740: Type '{ _entries: { id: string; pageNumber: number; size: { x: number; y: number; }; loader: () => Promise<IntermediatePage>; }[]; readonly pageCount: number; readonly pageNumbers: number[]; getPageByPageNumber: (n: any) => Promise<...> | undefined; getPageSizeByPageNumber: (n: any) => { ...; } | undefined; getPages: () =...' is missing the following properties from type 'IntermediatePageMap': entryById, entryByPageNumber, registerEntry, resolve, and 2 more.
+demo/__tests__/demoJsonView.test.ts(2,42): error TS7016: Could not find a declaration file for module '../demoJsonView'. '/home/zhangxiao/frontend/worktrees/PdfParser/feature-demo-single-page/demo/demoJsonView.js' implicitly has an 'any' type.
+demo/__tests__/demoJsonView.test.ts(56,5): error TS2322: Type 'Mock<(this: MockElement, ...nodes: MockElement[]) => void>' is not assignable to type 'Mock<UnknownFunction>'.
+  The types returned by 'getMockImplementation()' are incompatible between these types.
+    Type '((this: MockElement, ...nodes: MockElement[]) => void) | undefined' is not assignable to type 'UnknownFunction | undefined'.
+      Type '(this: MockElement, ...nodes: MockElement[]) => void' is not assignable to type 'UnknownFunction'.
+        Types of parameters 'nodes' and 'args' are incompatible.
+          Type 'unknown' is not assignable to type 'MockElement'.
+demo/__tests__/demoJsonView.test.ts(63,5): error TS2322: Type 'Mock<(this: MockElement, node: MockElement) => void>' is not assignable to type 'Mock<UnknownFunction>'.
+  The types returned by 'getMockImplementation()' are incompatible between these types.
+    Type '((this: MockElement, node: MockElement) => void) | undefined' is not assignable to type 'UnknownFunction | undefined'.
+      Type '(this: MockElement, node: MockElement) => void' is not assignable to type 'UnknownFunction'.
+        Types of parameters 'node' and 'args' are incompatible.
+          Type 'unknown' is not assignable to type 'MockElement'.
+demo/__tests__/demoJsonView.test.ts(71,11): error TS2322: Type 'Mock<(this: MockElement, node: MockElement) => void>' is not assignable to type 'Mock<UnknownFunction>'.
+  The types returned by 'getMockImplementation()' are incompatible between these types.
+    Type '((this: MockElement, node: MockElement) => void) | undefined' is not assignable to type 'UnknownFunction | undefined'.
+      Type '(this: MockElement, node: MockElement) => void' is not assignable to type 'UnknownFunction'.
+        Types of parameters 'node' and 'args' are incompatible.
+          Type 'unknown' is not assignable to type 'MockElement'.
+src/__tests__/buildPageInfoList.test.ts(118,51): error TS2345: Argument of type '{ items: never[]; styles: any; }' is not assignable to parameter of type 'never'.
+src/__tests__/pdfParserIntegration.test.ts(54,5): error TS4104: The type 'readonly [readonly [number, number], readonly [number, number], readonly [number, number], readonly [number, number]]' is 'readonly' and cannot be assigned to the mutable type 'Polygon'.
+src/__tests__/pdfParserIntegration.test.ts(194,20): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+src/__tests__/pdfParserIntegration.test.ts(199,29): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+src/__tests__/pdfParserIntegration.test.ts(199,41): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/__tests__/pdfParserIntegration.test.ts(208,29): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+src/__tests__/pdfParserIntegration.test.ts(208,41): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/__tests__/pdfParserIntegration.test.ts(216,29): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+src/__tests__/pdfParserIntegration.test.ts(216,41): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/__tests__/pdfParserIntegration.test.ts(228,29): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+src/__tests__/pdfParserIntegration.test.ts(228,41): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/__tests__/pdfParserIntegration.test.ts(241,27): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+src/__tests__/pdfParserIntegration.test.ts(252,27): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+src/__tests__/pdfParserIntegration.test.ts(264,27): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+src/__tests__/pdfParserIntegration.test.ts(276,27): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+src/__tests__/pdfParserIntegration.test.ts(297,29): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+src/__tests__/pdfParserIntegration.test.ts(297,41): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/__tests__/pdfParserIntegration.test.ts(311,29): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+src/__tests__/pdfParserIntegration.test.ts(311,41): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/__tests__/pdfParserIntegration.test.ts(349,23): error TS2339: Property 'byteLength' does not exist on type 'ArrayBuffer | File'.
+  Property 'byteLength' does not exist on type 'File'.
+src/__tests__/pdfParserIntegration.test.ts(368,23): error TS2339: Property 'byteLength' does not exist on type 'ArrayBuffer | File'.
+  Property 'byteLength' does not exist on type 'File'.
+src/__tests__/pdfParserIntegration.test.ts(373,9): error TS2322: Type '() => Promise<string>' is not assignable to type '(scale: number) => Promise<IntermediateImage | undefined>'.
+  Type 'Promise<string>' is not assignable to type 'Promise<IntermediateImage | undefined>'.
+    Type 'string' is not assignable to type 'IntermediateImage'.
+src/__tests__/pdfParserIntegration.test.ts(379,23): error TS2339: Property 'byteLength' does not exist on type 'ArrayBuffer | File'.
+  Property 'byteLength' does not exist on type 'File'.
+src/__tests__/pdfParserIntegration.test.ts(396,23): error TS2339: Property 'byteLength' does not exist on type 'ArrayBuffer | File'.
+  Property 'byteLength' does not exist on type 'File'.
+src/__tests__/pdfParserIntegration.test.ts(414,25): error TS2339: Property 'byteLength' does not exist on type 'ArrayBuffer | File'.
+  Property 'byteLength' does not exist on type 'File'.
+src/__tests__/pdfParserIntegration.test.ts(419,25): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+src/__tests__/pdfParserIntegration.test.ts(419,37): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/__tests__/pdfParserIntegration.test.ts(442,25): error TS2339: Property 'byteLength' does not exist on type 'ArrayBuffer | File'.
+  Property 'byteLength' does not exist on type 'File'.
+src/__tests__/pdfParserIntegration.test.ts(447,25): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+src/__tests__/pdfParserIntegration.test.ts(447,37): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/__tests__/pdfParserIntegration.test.ts(472,25): error TS2339: Property 'byteLength' does not exist on type 'ArrayBuffer | File'.
+  Property 'byteLength' does not exist on type 'File'.
+src/__tests__/pdfParserIntegration.test.ts(477,25): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+src/__tests__/pdfParserIntegration.test.ts(477,37): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/__tests__/pdfParserIntegration.test.ts(563,23): error TS2339: Property 'byteLength' does not exist on type 'ArrayBuffer | File'.
+  Property 'byteLength' does not exist on type 'File'.
+src/__tests__/pdfParserIntegration.test.ts(590,23): error TS2339: Property 'byteLength' does not exist on type 'ArrayBuffer | File'.
+  Property 'byteLength' does not exist on type 'File'.
+src/__tests__/pdfParserIntegration.test.ts(652,32): error TS2339: Property 'byteLength' does not exist on type 'ArrayBuffer | File'.
+  Property 'byteLength' does not exist on type 'File'.
+src/__tests__/pdfParserIntegration.test.ts(674,26): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+src/__tests__/pdfParserIntegration.test.ts(674,38): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/__tests__/pdfParserIntegration.test.ts(685,26): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+src/__tests__/pdfParserIntegration.test.ts(685,38): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/__tests__/pdfParserIntegration.test.ts(696,26): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+src/__tests__/pdfParserIntegration.test.ts(696,38): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/pdfParser.ts(390,28): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+src/pdfParser.ts(391,19): error TS2339: Property 'texts' does not exist on type 'IntermediatePage'.
+src/pdfParser.ts(395,26): error TS2339: Property 'getTexts' does not exist on type 'IntermediatePage'.
+src/pdfParser.ts(406,57): error TS2339: Property 'trim' does not exist on type 'never'.
+src/pdfParser.ts(951,7): error TS2698: Spread types may only be created from object types.
+src/pdfParser.ts(1281,38): error TS2345: Argument of type '(scale: number) => Promise<string | undefined>' is not assignable to parameter of type '(scale: number) => Promise<IntermediateImage | undefined>'.
+  Type 'Promise<string | undefined>' is not assignable to type 'Promise<IntermediateImage | undefined>'.
+    Type 'string | undefined' is not assignable to type 'IntermediateImage | undefined'.
+      Type 'string' is not assignable to type 'IntermediateImage'.
+src/pdfParser.ts(1298,22): error TS2339: Property 'setGetTexts' does not exist on type 'IntermediatePage'.
+src/pdfParser.ts(1685,33): error TS2339: Property 'ascent' does not exist on type 'Partial<TextStyle>'.
+  Property 'ascent' does not exist on type 'Partial<TextStyleOverride>'.
+src/pdfParser.ts(1686,34): error TS2339: Property 'descent' does not exist on type 'Partial<TextStyle>'.
+  Property 'descent' does not exist on type 'Partial<TextStyleOverride>'.
+src/pdfParser.ts(1687,37): error TS2339: Property 'fontFamily' does not exist on type 'Partial<TextStyle>'.
+  Property 'fontFamily' does not exist on type 'Partial<TextStyleFunction>'.
+src/pdfParser.ts(1688,36): error TS2339: Property 'vertical' does not exist on type 'Partial<TextStyle>'.
+  Property 'vertical' does not exist on type 'Partial<TextStyleOverride>'.
+error Command failed with exit code 2.
+info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.

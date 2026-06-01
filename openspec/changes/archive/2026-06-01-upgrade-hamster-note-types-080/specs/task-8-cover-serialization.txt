@@ -1,0 +1,60 @@
+# Task 8: Cover Serialization - Evidence
+
+## Date: 2026-05-23
+
+## Changes Made
+
+### `resolveCoverAvailable` updated to handle `IntermediateImage`
+
+**File:** `demo/demoDocumentSerialization.js`
+
+The `resolveCoverAvailable` function now checks for `IntermediateImage` objects rather than raw strings. According to the 0.8.0 specification, `getCover()` returns `IntermediateImage | undefined`.
+
+**Before:**
+```javascript
+const cover = await intermediate.getCover(0.25).catch(() => undefined)
+const available = typeof cover === 'string' && cover.length > 0
+```
+
+**After:**
+```javascript
+const cover = await intermediate.getCover(0.25).catch(() => undefined)
+const available = Boolean(
+  cover &&
+  typeof cover === 'object' &&
+  'src' in cover &&
+  typeof cover.src === 'string' &&
+  cover.src.length > 0
+)
+```
+
+## Test Updates
+
+### `demo/__tests__/demoDocumentSerialization.test.ts`
+
+1. Added `IntermediateImage` to imports from `@hamster-note/types`
+
+2. Updated test "notifies subscribers when cover status resolves before page summaries":
+   - `getCover` mock now returns `IntermediateImage` instead of string
+
+3. Updated test "coverAvailable is true when intermediate has cover":
+   - `setGetThumbnail` now returns `IntermediateImage` with proper structure
+
+## Semantic Alignment
+
+The updated code properly distinguishes between:
+- **Thumbnail images**: Full-page rendered screenshots used as background, stored as `IntermediateImage`
+- **Extracted content images**: Images extracted from PDF content (handled in Tasks 4-5)
+
+`getCover()` and `getThumbnail()` both return `IntermediateImage | undefined` as per 0.8.0 specification.
+
+## Verification
+
+- All 11 demo serialization tests pass
+- `coverAvailable` is now properly `false` (not `undefined`) when no cover is available
+- `Boolean()` wrapper ensures proper boolean conversion
+
+## Related Files
+
+1. `demo/demoDocumentSerialization.js` - Cover detection logic
+2. `demo/__tests__/demoDocumentSerialization.test.ts` - Tests updated for `IntermediateImage` cover handling
