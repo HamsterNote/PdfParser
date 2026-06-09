@@ -14,7 +14,7 @@
     "check:types": "tsc --noEmit",
     "lint": "eslint .",
     "verify:vite": "npm --prefix demo/vite-fixture ci && npm --prefix demo/vite-fixture run build",
-    "dev": "http-server -p 5577",
+    "dev": "http-server -p 8429",
     "prepublishOnly": "npm run build:all"
   },
   "dependencies": {
