@@ -1520,6 +1520,8 @@ export class PdfParser extends DocumentParser {
     )
     try {
       const viewport = page.getViewport({ scale: 1 })
+      let contentPromise: Promise<IntermediateContent[]> | undefined
+
       return new IntermediatePage({
         id: `${pdfId}-page-${pageNumber}`,
         number: pageNumber,
@@ -1538,13 +1540,18 @@ export class PdfParser extends DocumentParser {
             return undefined
           }
         },
-        getContentFn: () =>
-          PdfParser.loadIntermediatePageContent(
+        getContentFn: () => {
+          contentPromise ??= PdfParser.loadIntermediatePageContent(
             documentData,
             pdfId,
             pageNumber,
             pageLoadTimeoutMs
-          )
+          ).catch((error: unknown) => {
+            contentPromise = undefined
+            throw error
+          })
+          return contentPromise
+        }
       })
     } finally {
       page.cleanup?.()

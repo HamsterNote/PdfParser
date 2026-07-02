@@ -298,6 +298,85 @@ describe('PdfParser encode safeguards', () => {
     }
   })
 
+  it('deduplicates concurrent lazy page content requests', async () => {
+    const page = {
+      getViewport: () => ({ width: 100, height: 200 }),
+      getTextContent: async () => ({
+        items: [],
+        styles: Object.create(null)
+      }),
+      cleanup: jest.fn()
+    } as unknown as PDFPageProxy
+    const getPage = jest.fn(async () => page)
+    const pdf = {
+      numPages: 1,
+      getPage,
+      cleanup: jest.fn()
+    } as unknown as PDFDocumentProxy
+    const loadingTask = {
+      destroy: jest.fn(async () => undefined)
+    }
+    const documentData = new ArrayBuffer(0)
+    const loadPdfSessionSpy = jest
+      .spyOn(
+        PdfParser as unknown as {
+          loadPdfSession: (data: ArrayBuffer) => Promise<{
+            pdf: PDFDocumentProxy
+            loadingTask: typeof loadingTask
+          }>
+        },
+        'loadPdfSession'
+      )
+      .mockResolvedValue({ pdf, loadingTask })
+
+    const buildPageInfoList = (
+      PdfParser as unknown as {
+        buildPageInfoList: (
+          pdf: PDFDocumentProxy,
+          pdfId: string,
+          options: {
+            maxPages: number
+            pages: number[]
+            pageLoadTimeoutMs: number
+          },
+          onProgress: undefined,
+          documentData: ArrayBuffer
+        ) => Promise<
+          Array<{
+            getData: () => Promise<{
+              getContent: () => Promise<unknown>
+            }>
+          }>
+        >
+      }
+    ).buildPageInfoList.bind(PdfParser)
+
+    try {
+      const infoList = await buildPageInfoList(
+        pdf,
+        'pdf-id',
+        {
+          maxPages: 1,
+          pages: [],
+          pageLoadTimeoutMs: 1000
+        },
+        undefined,
+        documentData
+      )
+      const lazyPage = await infoList[0].getData()
+
+      const [firstContent, secondContent] = await Promise.all([
+        lazyPage.getContent(),
+        lazyPage.getContent()
+      ])
+
+      expect(firstContent).toEqual(secondContent)
+      expect(loadPdfSessionSpy).toHaveBeenCalledTimes(1)
+    } finally {
+      loadPdfSessionSpy.mockRestore()
+    }
+  })
+
   describe('PdfParser.encode signature compatibility', () => {
     let pdfBuffer: ArrayBuffer
 
