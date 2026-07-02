@@ -163,8 +163,9 @@ function isIntermediateTextItem(item: unknown): item is IntermediateText {
   )
 }
 
-function getPageTexts(page: IntermediatePage | undefined) {
-  return (page?.content ?? []).filter(isIntermediateTextItem)
+async function getLoadedPageTexts(page: IntermediatePage | undefined) {
+  const content = (await page?.getContent()) ?? []
+  return content.filter(isIntermediateTextItem)
 }
 
 function isIntermediateImageItem(item: unknown): item is IntermediateImage {
@@ -297,13 +298,13 @@ async function snapshotDecodedTextLayout(buffer: ArrayBuffer) {
       content: string
       fontSize: number
       lineHeight: number
-      opacity: number
+      opacity: number | undefined
     }>
   }> = []
 
   for (const pageNumber of reparsed.pageNumbers) {
     const page = await reparsed.getPageByPageNumber(pageNumber)
-    const texts = getPageTexts(page)
+    const texts = await getLoadedPageTexts(page)
 
     pages.push({
       pageNumber,
@@ -437,9 +438,36 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
       expect(page?.content).toBeDefined()
     })
 
+    it('encode 只读取页面尺寸时不应提前提取图片内容', async () => {
+      const extractImagesSpy = jest.spyOn(PdfParser, 'extractImagesFromPage')
+
+      try {
+        const lazyDocument = await PdfParser.encode(pdfBuffer, { maxPages: 1 })
+        const size = lazyDocument?.getPageSizeByPageNumber(1)
+
+        expect(size?.x).toBeGreaterThan(0)
+        expect(size?.y).toBeGreaterThan(0)
+        expect(extractImagesSpy).not.toHaveBeenCalled()
+
+        const page = await lazyDocument?.getPageByPageNumber(1)
+
+        expect(page).toBeDefined()
+        expect(page?.hasLoadedContent).toBe(false)
+        expect(extractImagesSpy).not.toHaveBeenCalled()
+
+        const content = await page?.getContent()
+
+        expect((content ?? []).some(isIntermediateTextItem)).toBe(true)
+        expect(extractImagesSpy).toHaveBeenCalledTimes(1)
+        expect(page?.hasLoadedContent).toBe(true)
+      } finally {
+        extractImagesSpy.mockRestore()
+      }
+    }, 30000)
+
     it('第一页应该包含用户名 "Z.X" 或 "wszxdhr"', async () => {
       const page = await document?.getPageByPageNumber(1)
-      const allText = getPageTexts(page)
+      const allText = (await getLoadedPageTexts(page))
         .map((t) => t.content)
         .join('')
 
@@ -450,7 +478,7 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
 
     it('第一页应该包含邮箱 "job@z-x.vip"', async () => {
       const page = await document?.getPageByPageNumber(1)
-      const allText = getPageTexts(page)
+      const allText = (await getLoadedPageTexts(page))
         .map((t) => t.content)
         .join('')
       const normalizedText = allText.replace(/\s+/g, '').toLowerCase()
@@ -460,7 +488,7 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
 
     it('应该包含 "followers" 和 "following" 统计信息', async () => {
       const page = await document?.getPageByPageNumber(1)
-      const allText = getPageTexts(page)
+      const allText = (await getLoadedPageTexts(page))
         .map((t) => t.content)
         .join('')
       const normalizedText = allText.replace(/\s+/g, '').toLowerCase()
@@ -474,7 +502,7 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
 
     it('应该包含 "Repositories" 信息', async () => {
       const page = await document?.getPageByPageNumber(1)
-      const allText = getPageTexts(page)
+      const allText = (await getLoadedPageTexts(page))
         .map((t) => t.content)
         .join('')
       const normalizedText = allText.replace(/\s+/g, '').toLowerCase()
@@ -538,7 +566,7 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
   describe('文本属性验证', () => {
     it('文本元素应该有有效的 ID', async () => {
       const page = await document?.getPageByPageNumber(1)
-      const texts = getPageTexts(page)
+      const texts = await getLoadedPageTexts(page)
       expect(texts.length).toBeGreaterThan(0)
 
       for (let i = 0; i < Math.min(5, texts.length); i++) {
@@ -549,7 +577,7 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
 
     it('文本元素应该有 polygon 位置信息', async () => {
       const page = await document?.getPageByPageNumber(1)
-      const texts = getPageTexts(page)
+      const texts = await getLoadedPageTexts(page)
       expect(texts.length).toBeGreaterThan(0)
 
       for (const text of texts.slice(0, 5)) {
@@ -561,7 +589,7 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
 
     it('文本元素应该通过 polygon 保留尺寸信息', async () => {
       const page = await document?.getPageByPageNumber(1)
-      const texts = getPageTexts(page)
+      const texts = await getLoadedPageTexts(page)
       expect(texts.length).toBeGreaterThan(0)
 
       for (const text of texts.slice(0, 5)) {
@@ -573,7 +601,7 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
 
     it('文本元素应该有字体大小信息', async () => {
       const page = await document?.getPageByPageNumber(1)
-      const texts = getPageTexts(page)
+      const texts = await getLoadedPageTexts(page)
       expect(texts.length).toBeGreaterThan(0)
 
       for (const text of texts.slice(0, 5)) {
@@ -594,7 +622,7 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
 
     it('第二页应该包含活动统计信息', async () => {
       const page = await document?.getPageByPageNumber(2)
-      const allText = getPageTexts(page)
+      const allText = (await getLoadedPageTexts(page))
         .map((t) => t.content)
         .join('')
       const normalizedText = allText.replace(/\s+/g, '').toLowerCase()
@@ -610,7 +638,7 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
 
     it('第三页应该包含贡献日历或项目信息', async () => {
       const page = await document?.getPageByPageNumber(3)
-      const allText = getPageTexts(page)
+      const allText = (await getLoadedPageTexts(page))
         .map((t) => t.content)
         .join('')
       const normalizedText = allText.replace(/\s+/g, '').toLowerCase()
@@ -895,7 +923,7 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
 
       const reparsed = await PdfParser.encode(decoded as ArrayBuffer)
       const reparsedPage = await reparsed?.getPageByPageNumber(1)
-      const reparsedText = getPageTexts(reparsedPage)
+      const reparsedText = (await getLoadedPageTexts(reparsedPage))
         .map((text) => text.content)
         .join('')
 
@@ -981,7 +1009,7 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
       expect(reparsed?.pageCount).toBe(1)
 
       const page = await reparsed?.getPageByPageNumber(1)
-      const textContent = getPageTexts(page)
+      const textContent = (await getLoadedPageTexts(page))
         .map((text) => text.content)
         .join('')
 
@@ -1181,7 +1209,7 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
 
         const reparsed = await PdfParser.encode(decoded as ArrayBuffer)
         const reparsedPage = await reparsed?.getPageByPageNumber(1)
-        const reparsedText = getPageTexts(reparsedPage)
+        const reparsedText = (await getLoadedPageTexts(reparsedPage))
           .map((t) => t.content)
           .join('')
 
@@ -1210,7 +1238,7 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
 
         const reparsed = await PdfParser.encode(decoded as ArrayBuffer)
         const reparsedPage = await reparsed?.getPageByPageNumber(1)
-        const reparsedText = getPageTexts(reparsedPage)
+        const reparsedText = (await getLoadedPageTexts(reparsedPage))
           .map((t) => t.content)
           .join('')
 
@@ -1241,7 +1269,7 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
 
         const reparsed = await PdfParser.encode(decoded as ArrayBuffer)
         const reparsedPage = await reparsed?.getPageByPageNumber(1)
-        const reparsedText = getPageTexts(reparsedPage)
+        const reparsedText = (await getLoadedPageTexts(reparsedPage))
           .map((t) => t.content)
           .join('')
 
@@ -1439,7 +1467,7 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
 
         const reparsed1 = await PdfParser.encode(decoded1 as ArrayBuffer)
         const reparsedPage1 = await reparsed1?.getPageByPageNumber(1)
-        const reparsedText1 = getPageTexts(reparsedPage1)
+        const reparsedText1 = (await getLoadedPageTexts(reparsedPage1))
           .map((t) => t.content)
           .join('')
         expect(reparsedText1).toContain('文档一中文本')
@@ -1451,7 +1479,7 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
 
         const reparsed2 = await PdfParser.encode(decoded2 as ArrayBuffer)
         const reparsedPage2 = await reparsed2?.getPageByPageNumber(1)
-        const reparsedText2 = getPageTexts(reparsedPage2)
+        const reparsedText2 = (await getLoadedPageTexts(reparsedPage2))
           .map((t) => t.content)
           .join('')
         expect(reparsedText2).not.toContain('文档一中文本')
@@ -1463,7 +1491,7 @@ describe('PdfParser Integration Tests - test_github.pdf', () => {
 
         const reparsed3 = await PdfParser.encode(decoded3 as ArrayBuffer)
         const reparsedPage3 = await reparsed3?.getPageByPageNumber(1)
-        const reparsedText3 = getPageTexts(reparsedPage3)
+        const reparsedText3 = (await getLoadedPageTexts(reparsedPage3))
           .map((t) => t.content)
           .join('')
         expect(reparsedText3).toContain('文档一中文本')

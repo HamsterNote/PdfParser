@@ -139,7 +139,9 @@ async function setupDemo() {
 
   const loadSampleButton = createElementMock()
   const fileInput = createElementMock()
+  const pageNumberInput = createElementMock()
   const encodeButton = createElementMock()
+  const logEncodeObjectButton = createElementMock()
   const decodeButton = createElementMock()
   const jsonOutputToggle = createElementMock()
   const statusElement = createElementMock()
@@ -216,6 +218,7 @@ async function setupDemo() {
     }
   >()
   const consoleInfo = jest.spyOn(console, 'info').mockImplementation(() => {})
+  const consoleLog = jest.spyOn(console, 'log').mockImplementation(() => {})
   const consoleTable = jest.spyOn(console, 'table').mockImplementation(() => {})
 
   const fetchMock: DemoFetchMock = jest.fn(async () => ({
@@ -231,7 +234,9 @@ async function setupDemo() {
     getElementById: jest.fn((id: string) => {
       if (id === 'demo-load-sample') return loadSampleButton
       if (id === 'pdf-file-input') return fileInput
+      if (id === 'page-number-input') return pageNumberInput
       if (id === 'encode-button') return encodeButton
+      if (id === 'log-encode-obj-button') return logEncodeObjectButton
       if (id === 'decode-button') return decodeButton
       if (id === 'json-output-toggle') return jsonOutputToggle
       if (id === 'decode-text-override') return decodeTextOverrideInput
@@ -271,14 +276,17 @@ async function setupDemo() {
 
   const decodeMock: DecodeMock = jest.fn()
 
-  const browserModule = await import('../../dist/browser.js')
-  ;(browserModule.PdfParser as unknown as { encode: unknown }).encode =
-    encodeMock
-  ;(browserModule.PdfParser as unknown as { decode: unknown }).decode =
-    decodeMock
-  ;(
-    browserModule.PdfParser as unknown as { configureDecodeFont: unknown }
-  ).configureDecodeFont = configureDecodeFontMock
+  const browserModulePath: string = '../../dist/browser.js'
+  const browserModule = (await import(browserModulePath)) as unknown as {
+    PdfParser: {
+      encode: unknown
+      decode: unknown
+      configureDecodeFont: unknown
+    }
+  }
+  browserModule.PdfParser.encode = encodeMock
+  browserModule.PdfParser.decode = decodeMock
+  browserModule.PdfParser.configureDecodeFont = configureDecodeFontMock
 
   await import('../demo.js')
 
@@ -290,7 +298,9 @@ async function setupDemo() {
   return {
     loadSampleButton,
     encodeButton,
+    logEncodeObjectButton,
     fileInput,
+    pageNumberInput,
     jsonOutputToggle,
     jsonOutputCardElement,
     statusElement,
@@ -313,6 +323,7 @@ async function setupDemo() {
     serializerFactoryMock,
     windowMock,
     consoleInfo,
+    consoleLog,
     consoleTable
   }
 }
@@ -501,6 +512,25 @@ describe('demo handleEncode progressive behavior', () => {
       })
     )
     expect(env.consoleInfo).toHaveBeenCalled()
+  })
+
+  it('logs the raw IntermediateDocument without rendering demo JSON output', async () => {
+    const env = await setupDemo()
+    const intermediate = { id: 'doc-log', title: 'Doc Log' }
+    env.encodeMock.mockResolvedValue(intermediate)
+
+    env.logEncodeObjectButton.trigger('click')
+    await flushTicks()
+
+    expect(env.encodeMock).toHaveBeenCalledTimes(1)
+    expect(env.serializerFactoryMock).not.toHaveBeenCalled()
+    expect(env.renderData).not.toHaveBeenCalled()
+    expect(env.updateData).not.toHaveBeenCalled()
+    expect(env.consoleLog).toHaveBeenCalledWith(
+      '[PdfParser demo] IntermediateDocument',
+      intermediate
+    )
+    expect(env.statusElement.textContent).toBe('IntermediateDocument logged')
   })
 
   it('skips JSON rendering while toggle is unchecked and restores latest snapshot when re-enabled', async () => {

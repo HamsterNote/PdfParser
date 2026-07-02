@@ -63,6 +63,7 @@ const loadSampleButton = document.getElementById('demo-load-sample')
 const fileInput = document.getElementById('pdf-file-input')
 const pageNumberInput = document.getElementById('page-number-input')
 const encodeButton = document.getElementById('encode-button')
+const logEncodeObjectButton = document.getElementById('log-encode-obj-button')
 const decodeButton = document.getElementById('decode-button')
 const jsonOutputToggle = document.getElementById('json-output-toggle')
 const statusElement = document.querySelector('[data-role="status"]')
@@ -629,11 +630,19 @@ const enableEncodeButton = () => {
   if (encodeButton) {
     encodeButton.disabled = false
   }
+
+  if (logEncodeObjectButton) {
+    logEncodeObjectButton.disabled = false
+  }
 }
 
 const disableEncodeButton = () => {
   if (encodeButton) {
     encodeButton.disabled = true
+  }
+
+  if (logEncodeObjectButton) {
+    logEncodeObjectButton.disabled = true
   }
 }
 
@@ -939,6 +948,48 @@ const handleEncode = async () => {
   }
 }
 
+const handleLogEncodeObject = async () => {
+  if (!currentFile) {
+    return
+  }
+
+  const file = currentFile
+  const pageNumber = getSelectedPageNumber()
+  setStatus('Logging IntermediateDocument...')
+  setError('')
+
+  if (logEncodeObjectButton) {
+    logEncodeObjectButton.disabled = true
+  }
+
+  try {
+    const arrayBuffer = await file.arrayBuffer()
+    const encodeOptions = pageNumber ? { pages: [pageNumber] } : {}
+    const intermediate = await PdfParser.encode(
+      arrayBuffer,
+      encodeOptions,
+      (event) => {
+        setStatus(formatEncodeProgressText(event))
+      }
+    )
+
+    if (!intermediate) {
+      throw new Error('Encode returned empty result.')
+    }
+
+    console.log('[PdfParser demo] IntermediateDocument', intermediate)
+    setStatus('IntermediateDocument logged')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    setStatus('IntermediateDocument log failed')
+    setError(message)
+  } finally {
+    if (logEncodeObjectButton && currentFile === file) {
+      logEncodeObjectButton.disabled = false
+    }
+  }
+}
+
 const handleDecode = async () => {
   if (!currentIntermediateDocument) {
     setStatus('Decode unavailable')
@@ -1127,6 +1178,12 @@ if (fileInput) {
 if (encodeButton) {
   encodeButton.addEventListener('click', () => {
     void handleEncode()
+  })
+}
+
+if (logEncodeObjectButton) {
+  logEncodeObjectButton.addEventListener('click', () => {
+    void handleLogEncodeObject()
   })
 }
 

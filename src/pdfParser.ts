@@ -492,7 +492,7 @@ export class PdfParser extends DocumentParser {
   private static async loadPageContent(
     page: IntermediatePage
   ): Promise<IntermediateContent[]> {
-    if (Array.isArray(page.content)) {
+    if (page.hasLoadedContent && Array.isArray(page.content)) {
       return page.content
     }
 
@@ -1330,8 +1330,8 @@ export class PdfParser extends DocumentParser {
     pdf: PDFDocumentProxy,
     pdfId: string,
     options: Required<EncodeOptions>,
-    onProgress?: EncodeProgressReporter,
-    documentData?: ArrayBuffer
+    onProgress: EncodeProgressReporter | undefined,
+    documentData: ArrayBuffer
   ): Promise<PageInfo[]> {
     const pageNumbers =
       Array.isArray(options.pages) && options.pages.length > 0
@@ -1397,7 +1397,7 @@ export class PdfParser extends DocumentParser {
     endPage: number,
     concurrency: number,
     pageLoadTimeoutMs: number,
-    documentData?: ArrayBuffer,
+    documentData: ArrayBuffer,
     onPageReady?: (pageInfo: PageInfo) => Promise<void> | void,
     pageNumbers?: number[]
   ): Promise<PageInfo[]> {
@@ -1511,78 +1511,126 @@ export class PdfParser extends DocumentParser {
     pageNumber: number,
     pdfId: string,
     pageLoadTimeoutMs: number,
-    documentData?: ArrayBuffer
+    documentData: ArrayBuffer
   ): Promise<IntermediatePage> {
     const page = await PdfParser.withTimeout(
       pdf.getPage(pageNumber),
       pageLoadTimeoutMs,
       `Timed out while loading page ${pageNumber} during PDF encode`
     )
-    const viewport = page.getViewport({ scale: 1 })
-    const textContent = await PdfParser.withTimeout(
-      page.getTextContent({
-        includeMarkedContent: false
-      }),
-      pageLoadTimeoutMs,
-      `Timed out while extracting text from page ${pageNumber} during PDF encode`
-    )
-    const textItems = PdfParser.mapTextContentToIntermediate(
-      textContent,
-      pdfId,
-      pageNumber,
-      viewport
-    )
-    for (const text of textItems) {
-      text.opacity = text.opacity ?? 1
-    }
-    const imageRecords = await PdfParser.withTimeout(
-      PdfParser.extractImagesFromPage(page, pdfId, pageNumber),
-      pageLoadTimeoutMs,
-      `Timed out while extracting images from page ${pageNumber} during PDF encode`
-    )
-    for (const record of imageRecords) {
-      for (const warning of record.warnings) {
-        PdfParser.warnUnsupportedImage(warning)
-      }
-    }
-    const images = imageRecords.map(
-      (record) =>
-        new IntermediateImage({
-          id: record.id,
-          src: record.src ?? '',
-          polygon: record.polygon,
-          opacity: record.opacity
-        })
-    )
-    const content: IntermediateContent[] = [...textItems, ...images]
-    const intermediatePage = new IntermediatePage({
-      id: `${pdfId}-page-${pageNumber}`,
-      number: pageNumber,
-      width: viewport.width,
-      height: viewport.height,
-      content,
-      thumbnail: undefined
-    })
-    intermediatePage.setGetThumbnail(async (scale: number) => {
-      try {
-        if (documentData) {
-          return PdfParser.renderThumbnailFromData(
+    try {
+      const viewport = page.getViewport({ scale: 1 })
+      let contentPromise: Promise<IntermediateContent[]> | undefined
+
+      return new IntermediatePage({
+        id: `${pdfId}-page-${pageNumber}`,
+        number: pageNumber,
+        width: viewport.width,
+        height: viewport.height,
+        content: [],
+        thumbnail: undefined,
+        getThumbnailFn: async (scale: number) => {
+          try {
+            return await PdfParser.renderThumbnailFromData(
+              documentData,
+              pageNumber,
+              scale
+            )
+          } catch {
+            return undefined
+          }
+        },
+        getContentFn: () => {
+          contentPromise ??= PdfParser.loadIntermediatePageContent(
             documentData,
+            pdfId,
             pageNumber,
-            scale
-          )
+            pageLoadTimeoutMs
+          ).catch((error: unknown) => {
+            contentPromise = undefined
+            throw error
+          })
+          return contentPromise
         }
-        const p = await pdf.getPage(pageNumber)
-        const url = await PdfParser.renderThumbnail(p, scale)
-        p.cleanup?.()
-        return url
-      } catch {
-        return undefined
+      })
+    } finally {
+      page.cleanup?.()
+    }
+  }
+
+  private static async loadIntermediatePageContent(
+    documentData: ArrayBuffer,
+    pdfId: string,
+    pageNumber: number,
+    pageLoadTimeoutMs: number
+  ): Promise<IntermediateContent[]> {
+    const session = await PdfParser.loadPdfSession(documentData)
+
+    try {
+      return await PdfParser.buildIntermediatePageContent(
+        session.pdf,
+        pdfId,
+        pageNumber,
+        pageLoadTimeoutMs
+      )
+    } finally {
+      await PdfParser.destroyLoadedPdfSession(session)
+    }
+  }
+
+  private static async buildIntermediatePageContent(
+    pdf: PDFDocumentProxy,
+    pdfId: string,
+    pageNumber: number,
+    pageLoadTimeoutMs: number
+  ): Promise<IntermediateContent[]> {
+    const page = await PdfParser.withTimeout(
+      pdf.getPage(pageNumber),
+      pageLoadTimeoutMs,
+      `Timed out while loading page ${pageNumber} content during PDF encode`
+    )
+
+    try {
+      const viewport = page.getViewport({ scale: 1 })
+      const textContent = await PdfParser.withTimeout(
+        page.getTextContent({
+          includeMarkedContent: false
+        }),
+        pageLoadTimeoutMs,
+        `Timed out while extracting text from page ${pageNumber} during PDF encode`
+      )
+      const textItems = PdfParser.mapTextContentToIntermediate(
+        textContent,
+        pdfId,
+        pageNumber,
+        viewport
+      )
+      for (const text of textItems) {
+        text.opacity = text.opacity ?? 1
       }
-    })
-    intermediatePage.setGetContent(async () => content)
-    page.cleanup?.()
-    return intermediatePage
+      const imageRecords = await PdfParser.withTimeout(
+        PdfParser.extractImagesFromPage(page, pdfId, pageNumber),
+        pageLoadTimeoutMs,
+        `Timed out while extracting images from page ${pageNumber} during PDF encode`
+      )
+      for (const record of imageRecords) {
+        for (const warning of record.warnings) {
+          PdfParser.warnUnsupportedImage(warning)
+        }
+      }
+      const images = imageRecords.map(
+        (record) =>
+          new IntermediateImage({
+            id: record.id,
+            src: record.src ?? '',
+            polygon: record.polygon,
+            opacity: record.opacity
+          })
+      )
+      return [...textItems, ...images]
+    } finally {
+      page.cleanup?.()
+    }
   }
 
   /**
