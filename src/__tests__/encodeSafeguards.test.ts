@@ -74,7 +74,9 @@ describe('PdfParser encode safeguards', () => {
             maxPages: number
             pages: number[]
             pageLoadTimeoutMs: number
-          }
+          },
+          onProgress: undefined,
+          documentData: ArrayBuffer
         ) => Promise<
           Array<{
             pageNumber: number
@@ -93,7 +95,13 @@ describe('PdfParser encode safeguards', () => {
       resolveEncodeOptions({ pages: [0, 11, 1.5] }, pdf.numPages)
     ).toThrow(RangeError)
 
-    const result = await buildPageInfoList(pdf, 'pdf-id', options)
+    const result = await buildPageInfoList(
+      pdf,
+      'pdf-id',
+      options,
+      undefined,
+      new ArrayBuffer(0)
+    )
 
     expect(getPage).toHaveBeenCalledTimes(2)
     expect(getPage).toHaveBeenNthCalledWith(1, 3)
@@ -130,7 +138,9 @@ describe('PdfParser encode safeguards', () => {
             maxPages: number
             pages: number[]
             pageLoadTimeoutMs: number
-          }
+          },
+          onProgress: undefined,
+          documentData: ArrayBuffer
         ) => Promise<
           Array<{
             id: string
@@ -142,11 +152,17 @@ describe('PdfParser encode safeguards', () => {
       }
     ).buildPageInfoList.bind(PdfParser)
 
-    const result = await buildPageInfoList(pdf, 'pdf-id', {
-      maxPages: 5,
-      pages: [],
-      pageLoadTimeoutMs: 1000
-    })
+    const result = await buildPageInfoList(
+      pdf,
+      'pdf-id',
+      {
+        maxPages: 5,
+        pages: [],
+        pageLoadTimeoutMs: 1000
+      },
+      undefined,
+      new ArrayBuffer(0)
+    )
 
     expect(getPage).toHaveBeenCalledTimes(5)
     expect(result).toHaveLength(5)
@@ -172,21 +188,29 @@ describe('PdfParser encode safeguards', () => {
             maxPages: number
             pages: number[]
             pageLoadTimeoutMs: number
-          }
+          },
+          onProgress: undefined,
+          documentData: ArrayBuffer
         ) => Promise<unknown>
       }
     ).buildPageInfoList.bind(PdfParser)
 
     await expect(
-      buildPageInfoList(pdf, 'pdf-id', {
-        maxPages: 1,
-        pages: [],
-        pageLoadTimeoutMs: 10
-      })
+      buildPageInfoList(
+        pdf,
+        'pdf-id',
+        {
+          maxPages: 1,
+          pages: [],
+          pageLoadTimeoutMs: 10
+        },
+        undefined,
+        new ArrayBuffer(0)
+      )
     ).rejects.toThrow('Timed out while loading page 1 during PDF encode')
   })
 
-  it('throws when text extraction exceeds timeout before encode completes', async () => {
+  it('defers text extraction timeout until lazy page content is requested', async () => {
     const events: Array<{
       stage: 'encode:start' | 'encode:page' | 'encode:complete'
       current: number
@@ -201,8 +225,24 @@ describe('PdfParser encode safeguards', () => {
     const getPage = jest.fn(async () => page)
     const pdf = {
       numPages: 1,
-      getPage
+      getPage,
+      cleanup: jest.fn()
     } as unknown as PDFDocumentProxy
+    const loadingTask = {
+      destroy: jest.fn(async () => undefined)
+    }
+    const documentData = new ArrayBuffer(0)
+    const loadPdfSessionSpy = jest
+      .spyOn(
+        PdfParser as unknown as {
+          loadPdfSession: (data: ArrayBuffer) => Promise<{
+            pdf: PDFDocumentProxy
+            loadingTask: typeof loadingTask
+          }>
+        },
+        'loadPdfSession'
+      )
+      .mockResolvedValue({ pdf, loadingTask })
 
     const buildPageInfoList = (
       PdfParser as unknown as {
@@ -214,17 +254,21 @@ describe('PdfParser encode safeguards', () => {
             pages: number[]
             pageLoadTimeoutMs: number
           },
-          onProgress?: (event: (typeof events)[number]) => void
+          onProgress: ((event: (typeof events)[number]) => void) | undefined,
+          documentData: ArrayBuffer
         ) => Promise<
           Array<{
-            getData: () => Promise<unknown>
+            getData: () => Promise<{
+              hasLoadedContent: boolean
+              getContent: () => Promise<unknown>
+            }>
           }>
         >
       }
     ).buildPageInfoList.bind(PdfParser)
 
-    await expect(
-      buildPageInfoList(
+    try {
+      const infoList = await buildPageInfoList(
         pdf,
         'pdf-id',
         {
@@ -234,13 +278,24 @@ describe('PdfParser encode safeguards', () => {
         },
         (event) => {
           events.push(event)
-        }
+        },
+        documentData
       )
-    ).rejects.toThrow(
-      'Timed out while extracting text from page 1 during PDF encode'
-    )
 
-    expect(events).toHaveLength(0)
+      expect(infoList).toHaveLength(1)
+      expect(events).toEqual([{ stage: 'encode:page', current: 1, total: 1 }])
+      expect(loadPdfSessionSpy).not.toHaveBeenCalled()
+
+      const lazyPage = await infoList[0].getData()
+      expect(lazyPage.hasLoadedContent).toBe(false)
+
+      await expect(lazyPage.getContent()).rejects.toThrow(
+        'Timed out while extracting text from page 1 during PDF encode'
+      )
+      expect(loadPdfSessionSpy).toHaveBeenCalledWith(documentData)
+    } finally {
+      loadPdfSessionSpy.mockRestore()
+    }
   })
 
   describe('PdfParser.encode signature compatibility', () => {
