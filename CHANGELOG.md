@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-07-02
+
+### Fixed
+- 并发 `getContent` 单飞缓存，避免重复打开 PDF session
+
+### Performance
+- 延迟页面内容提取以提升大文件编码性能
+
 ## [0.7.0] - 2026-06-01
 
 ### Added
