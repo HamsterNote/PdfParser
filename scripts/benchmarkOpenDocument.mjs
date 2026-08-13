@@ -25,6 +25,8 @@ const PAGE_SCAN_BATCH_SIZE = 8
 const E2E_MIN_BYTES = 20 * 1024 * 1024
 const EVIDENCE_JSON = 'task-1-pdf-streaming-load.json'
 const EVIDENCE_LOG = 'task-1-pdf-streaming-load.log'
+const T11_EVIDENCE_JSON = 'task-11-node-benchmark.json'
+const T11_EVIDENCE_LOG = 'task-11-node-benchmark.log'
 let pdfjsModulePromise
 
 const FIXTURES = [
@@ -327,6 +329,33 @@ async function runEncodeChild(buffer) {
   return { encodeMs: performance.now() - startedAt, sessionOpenCount }
 }
 
+async function runOpenDocumentChild(buffer) {
+  const { PdfParser } = await import('../dist/index.js')
+  const originalLoad = PdfParser.loadPdfSession
+  let sessionOpenCount = 0
+  let handle
+  PdfParser.loadPdfSession = async (...argumentsList) => {
+    sessionOpenCount += 1
+    return originalLoad.apply(PdfParser, argumentsList)
+  }
+  const startedAt = performance.now()
+  try {
+    handle = await PdfParser.openDocument(toArrayBuffer(buffer))
+    return {
+      openDocumentMs: performance.now() - startedAt,
+      pageCount: handle.pageCount,
+      sessionOpenCount
+    }
+  } finally {
+    // dispose 不属于“document ready”计时窗，但冷进程退出前必须完成资源回收。
+    try {
+      await handle?.dispose()
+    } finally {
+      PdfParser.loadPdfSession = originalLoad
+    }
+  }
+}
+
 async function runSharedChild(buffer, concurrency) {
   const getDocumentStartedAt = performance.now()
   const session = await openPdf(buffer)
@@ -361,6 +390,8 @@ async function runChild(config) {
   let result
   if (config.operation === 'encode') {
     result = await runEncodeChild(buffer)
+  } else if (config.operation === 'openDocument') {
+    result = await runOpenDocumentChild(buffer)
   } else if (config.operation === 'shared') {
     result = await runSharedChild(buffer, config.concurrency)
   } else if (config.operation === 'repeated') {
@@ -435,6 +466,10 @@ async function benchmarkFixture(fixture) {
     operation: 'encode',
     fixturePath: fixture.filePath
   })
+  const openDocumentRuns = runConfig({
+    operation: 'openDocument',
+    fixturePath: fixture.filePath
+  })
   const repeatedRuns = runConfig({
     operation: 'repeated',
     fixturePath: fixture.filePath
@@ -454,13 +489,25 @@ async function benchmarkFixture(fixture) {
       )
     }
   }
+  const encodeMs = summarize(encodeRuns.map(({ encodeMs }) => encodeMs))
+  const openDocumentMs = summarize(
+    openDocumentRuns.map(({ openDocumentMs }) => openDocumentMs)
+  )
   return {
     name: fixture.name,
     source: fixture.source,
     gateEligible: fixture.gateEligible,
     bytes: fileStat.size,
     pageCount,
-    encodeMs: summarize(encodeRuns.map(({ encodeMs }) => encodeMs)),
+    encodeMs,
+    openDocumentMs,
+    speedup: {
+      median: Number((encodeMs.median / openDocumentMs.median).toFixed(3)),
+      p95: Number((encodeMs.p95 / openDocumentMs.p95).toFixed(3))
+    },
+    openDocumentSessionOpenCount: summarizeCounts(
+      openDocumentRuns.map(({ sessionOpenCount }) => sessionOpenCount)
+    ),
     sessionOpenCount: summarizeCounts(
       encodeRuns.map(({ sessionOpenCount }) => sessionOpenCount)
     ),
@@ -489,6 +536,8 @@ function makeLog(report) {
     lines.push(
       `${fixture.name}: pages=${fixture.pageCount}, bytes=${fixture.bytes}, gateEligible=${fixture.gateEligible}`,
       `  encode median=${fixture.encodeMs.median}ms p95=${fixture.encodeMs.p95}ms sessions=${JSON.stringify(fixture.sessionOpenCount)}`,
+      `  openDocument median=${fixture.openDocumentMs.median}ms p95=${fixture.openDocumentMs.p95}ms sessions=${JSON.stringify(fixture.openDocumentSessionOpenCount)}`,
+      `  speedup median=${fixture.speedup.median}x p95=${fixture.speedup.p95}x`,
       `  shared conc1 getDocument median=${fixture.sharedSession.conc1.getDocumentMs.median}ms p95=${fixture.sharedSession.conc1.getDocumentMs.p95}ms; scan median=${fixture.sharedSession.conc1.scanMs.median}ms p95=${fixture.sharedSession.conc1.scanMs.p95}ms`,
       `  shared conc4 getDocument median=${fixture.sharedSession.conc4.getDocumentMs.median}ms p95=${fixture.sharedSession.conc4.getDocumentMs.p95}ms; scan median=${fixture.sharedSession.conc4.scanMs.median}ms p95=${fixture.sharedSession.conc4.scanMs.p95}ms`,
       `  repeated opens median=${fixture.repeatedSessionBaseline.repeatedOpenMs.median}ms p95=${fixture.repeatedSessionBaseline.repeatedOpenMs.p95}ms sessions=${fixture.repeatedSessionBaseline.sessionOpenCount}`
@@ -497,9 +546,37 @@ function makeLog(report) {
   lines.push(
     '',
     `Decision gate: ${report.decisionGate.outcome}`,
-    report.decisionGate.reason
+    report.decisionGate.reason,
+    `T11 speed gate: ${report.speedGate.outcome}`,
+    report.speedGate.reason
   )
   return `${lines.join('\n')}\n`
+}
+
+function resolveSpeedGate(gateFixtures) {
+  const failingFixtures = gateFixtures.filter(
+    ({ speedup }) => !Number.isFinite(speedup.median) || speedup.median < 1.2
+  )
+  if (failingFixtures.length === 0) {
+    return {
+      outcome: 'PASS',
+      threshold: 1.2,
+      aspirationalTarget: 2,
+      reason:
+        '全部 gateEligible:true 夹具的 openDocument median speedup 均达到 1.2x 硬门。'
+    }
+  }
+  return {
+    outcome: 'FAIL-REGRESSION',
+    threshold: 1.2,
+    aspirationalTarget: 2,
+    failingFixtures: failingFixtures.map(({ name, speedup }) => ({
+      name,
+      medianSpeedup: speedup.median
+    })),
+    reason:
+      '至少一个 gateEligible:true 夹具的 openDocument median speedup 未达到 1.2x。'
+  }
 }
 
 function resolveDecisionGate(initialFailingFixtures, retestFailingFixtures) {
@@ -573,6 +650,7 @@ async function runBenchmark(evidenceDir) {
     initialFailingFixtures,
     retestFailingFixtures
   )
+  const speedGate = resolveSpeedGate(gateFixtures)
   const report = {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
@@ -585,15 +663,27 @@ async function runBenchmark(evidenceDir) {
     performanceGateFixtures: gateFixtures.map(({ name }) => name),
     fixtures,
     excludedFixtures: ['minimal-probe'],
-    decisionGate
+    decisionGate,
+    speedGate
+  }
+  // T11 复跑不得覆盖已经归档的 T1 基线；空 evidence 目录仍保留 T1 的首次输出能力。
+  if (!existsSync(path.join(evidenceDir, EVIDENCE_JSON))) {
+    await atomicWrite(
+      path.join(evidenceDir, EVIDENCE_JSON),
+      `${JSON.stringify(report, null, 2)}\n`
+    )
+    await atomicWrite(path.join(evidenceDir, EVIDENCE_LOG), makeLog(report))
   }
   await atomicWrite(
-    path.join(evidenceDir, EVIDENCE_JSON),
+    path.join(evidenceDir, T11_EVIDENCE_JSON),
     `${JSON.stringify(report, null, 2)}\n`
   )
-  await atomicWrite(path.join(evidenceDir, EVIDENCE_LOG), makeLog(report))
+  await atomicWrite(path.join(evidenceDir, T11_EVIDENCE_LOG), makeLog(report))
   console.log(JSON.stringify(report, null, 2))
-  if (decisionGate.outcome === 'STOP_REDECISION_REQUIRED') {
+  if (
+    decisionGate.outcome === 'STOP_REDECISION_REQUIRED' ||
+    speedGate.outcome === 'FAIL-REGRESSION'
+  ) {
     process.exitCode = 2
   }
 }
