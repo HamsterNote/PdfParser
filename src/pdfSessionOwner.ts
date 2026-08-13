@@ -183,7 +183,20 @@ export class PdfSessionOwner {
   }
 
   private async destroySessionOnce(): Promise<void> {
-    if (!this.lastSession || this.destroyAttempted) return
+    if (this.destroyAttempted) return
+
+    // 关闭超时可能先于加载完成；等待已经启动的加载，避免晚到的 worker 泄漏。
+    const pendingSession = this.sessionPromise
+    if (!this.lastSession && pendingSession) {
+      try {
+        await pendingSession
+      } catch {
+        // 加载失败时不会产生需要销毁的会话。
+        return
+      }
+    }
+    if (!this.lastSession) return
+
     this.destroyAttempted = true
     try {
       await this.lastSession.loadingTask.destroy()
