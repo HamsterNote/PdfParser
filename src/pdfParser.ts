@@ -41,6 +41,11 @@ import {
   ensurePdfjsStandardFontDataUrlConfigured,
   ensurePdfjsWorkerConfigured
 } from './pdfjsWorker'
+import { PdfSessionOwner } from './pdfSessionOwner'
+import type {
+  LockedPdfDocumentProxy,
+  LockedPdfSession
+} from './pdfSessionOwner'
 import './polyfills/dom-matrix.polyfill'
 import './polyfills/promise-withresolvers.polyfill'
 
@@ -115,6 +120,23 @@ export type EncodeOptions = {
   maxPages?: number
   pages?: number[]
   pageLoadTimeoutMs?: number
+}
+
+export type OpenDocumentOptions = {
+  pages?: number[]
+  pageLoadTimeoutMs?: number
+  scanConcurrency?: number
+  signal?: AbortSignal
+  pdfjsOverrides?: Partial<DocumentInitParameters>
+  onProgress?: EncodeProgressReporter
+}
+
+export type OpenDocumentHandle = {
+  id: string
+  title: string | undefined
+  pageCount: number
+  document: IntermediateDocument
+  dispose: () => Promise<void>
 }
 
 export type DecodeProgressEvent = {
@@ -230,6 +252,30 @@ type PageInfo = {
   getData: () => Promise<IntermediatePage>
 }
 
+type ResolvedOpenDocumentOptions = {
+  pageLoadTimeoutMs: number
+  pageNumbers: number[]
+  scanConcurrency: number
+}
+
+type RetirementError = Error & {
+  retirement: Promise<void>
+}
+
+type ThumbnailBucket = {
+  fulfilled: boolean
+  lastUsed: number
+  promise: Promise<IntermediateImage | undefined>
+}
+
+type OpenDocumentLazyContext = {
+  contentTasks: Map<number, Promise<IntermediateContent[]>>
+  pageLoadTimeoutMs: number
+  pdfId: string
+  thumbnailBuckets: Map<number, Map<number, ThumbnailBucket>>
+  thumbnailClock: number
+}
+
 export class PdfParser extends DocumentParser {
   private static readonly defaultEncodeOptions: Required<EncodeOptions> = {
     maxPages: Number.POSITIVE_INFINITY,
@@ -254,6 +300,11 @@ export class PdfParser extends DocumentParser {
 
   private static warnings: PdfParserWarning[] = []
 
+  private static readonly openDocumentContexts = new WeakMap<
+    PdfSessionOwner,
+    OpenDocumentLazyContext
+  >()
+
   private static __yieldHook: (() => Promise<void>) | undefined = undefined
 
   static configureDecodeFont(config?: DecodeFontInput): void {
@@ -276,6 +327,459 @@ export class PdfParser extends DocumentParser {
   }
 
   static readonly exts = ['pdf'] as const
+
+  static async openDocument(
+    input: File | Blob | ArrayBuffer | Uint8Array,
+    options: OpenDocumentOptions = {}
+  ): Promise<OpenDocumentHandle> {
+    const signal = options.signal
+    if (signal?.aborted) {
+      throw PdfParser.attachRetirement(
+        PdfParser.createAbortError(),
+        Promise.resolve()
+      )
+    }
+
+    const conversion = PdfParser.toArrayBuffer(input)
+    conversion.catch(() => undefined)
+    const conversionAbort = PdfParser.createAbortGate(signal)
+    let buffer: ArrayBuffer
+    try {
+      buffer = await Promise.race([conversion, conversionAbort.promise])
+    } catch (error: unknown) {
+      conversionAbort.close()
+      if (signal?.aborted) {
+        throw PdfParser.attachRetirement(
+          PdfParser.createAbortError(),
+          Promise.resolve()
+        )
+      }
+      throw PdfParser.attachRetirement(error, Promise.resolve())
+    }
+    conversionAbort.close()
+
+    const owner = new PdfSessionOwner(() =>
+      PdfParser.loadPdfSession(buffer, options.pdfjsOverrides)
+    )
+    const initialization = PdfParser.initializeOpenDocument(owner, options)
+    initialization.catch(() => undefined)
+    const initializationAbort = PdfParser.createAbortGate(signal)
+
+    try {
+      const handle = await Promise.race([
+        initialization,
+        initializationAbort.promise
+      ])
+      initializationAbort.close()
+      return handle
+    } catch (error: unknown) {
+      initializationAbort.close()
+      const retirement = owner.dispose()
+      retirement.catch(() => undefined)
+      if (signal?.aborted) {
+        throw PdfParser.attachRetirement(
+          PdfParser.createAbortError(),
+          retirement
+        )
+      }
+      await retirement
+      throw PdfParser.attachRetirement(error, retirement)
+    }
+  }
+
+  private static async initializeOpenDocument(
+    owner: PdfSessionOwner,
+    options: OpenDocumentOptions
+  ): Promise<OpenDocumentHandle> {
+    const lease = await owner.acquire()
+    try {
+      const pdf = lease.pdf
+      const id = pdf.fingerprints?.[0] ?? `pdf-${Date.now()}`
+      const resolved = PdfParser.resolveOpenDocumentOptions(
+        options,
+        pdf.numPages
+      )
+      let title: string | undefined
+      try {
+        const metadata = await pdf.getMetadata()
+        const metadataTitle = (metadata?.info as { Title?: unknown })?.Title
+        title =
+          typeof metadataTitle === 'string' && metadataTitle.length > 0
+            ? metadataTitle
+            : undefined
+      } catch {
+        title = undefined
+      }
+
+      if (options.signal?.aborted) throw PdfParser.createAbortError()
+
+      options.onProgress?.({
+        stage: 'encode:start',
+        current: 0,
+        total: resolved.pageNumbers.length
+      })
+      PdfParser.openDocumentContexts.set(owner, {
+        contentTasks: new Map(),
+        pageLoadTimeoutMs: resolved.pageLoadTimeoutMs,
+        pdfId: id,
+        thumbnailBuckets: new Map(),
+        thumbnailClock: 0
+      })
+      const [infoList, outline] = await Promise.all([
+        PdfParser.scanOpenDocumentPages(
+          owner,
+          lease,
+          resolved,
+          options.signal,
+          options.onProgress
+        ),
+        PdfParser.buildOutline(pdf, id).catch(() => undefined)
+      ])
+      if (options.signal?.aborted) throw PdfParser.createAbortError()
+      const document = new IntermediateDocument({
+        id,
+        title: title ?? 'Untitled PDF',
+        pagesMap: IntermediatePageMap.makeByInfoList(infoList),
+        outline
+      })
+      options.onProgress?.({
+        stage: 'encode:complete',
+        current: resolved.pageNumbers.length,
+        total: resolved.pageNumbers.length
+      })
+      return {
+        id,
+        title,
+        pageCount: pdf.numPages,
+        document,
+        dispose: () => owner.dispose()
+      }
+    } finally {
+      owner.release(lease)
+    }
+  }
+
+  private static resolveOpenDocumentOptions(
+    options: OpenDocumentOptions,
+    totalPages: number
+  ): ResolvedOpenDocumentOptions {
+    const encodeOptions = PdfParser.resolveEncodeOptions(
+      {
+        pages: options.pages,
+        pageLoadTimeoutMs: options.pageLoadTimeoutMs
+      },
+      totalPages
+    )
+    const pageNumbers =
+      encodeOptions.pages.length > 0
+        ? encodeOptions.pages
+        : Array.from({ length: totalPages }, (_, index) => index + 1)
+    const requestedConcurrency = Number.isFinite(options.scanConcurrency)
+      ? Math.floor(options.scanConcurrency as number)
+      : 4
+    return {
+      pageLoadTimeoutMs: encodeOptions.pageLoadTimeoutMs,
+      pageNumbers,
+      scanConcurrency: Math.max(1, requestedConcurrency)
+    }
+  }
+
+  private static async scanOpenDocumentPages(
+    owner: PdfSessionOwner,
+    lease: LockedPdfSession,
+    options: ResolvedOpenDocumentOptions,
+    signal: AbortSignal | undefined,
+    onProgress: EncodeProgressReporter | undefined
+  ): Promise<PageInfo[]> {
+    const slots: Array<PageInfo | undefined> = new Array(
+      options.pageNumbers.length
+    ).fill(undefined)
+    let completed = 0
+    let nextToEmit = 0
+    let nextToSchedule = 0
+    let stopped = false
+
+    const worker = async (): Promise<void> => {
+      while (!stopped) {
+        if (signal?.aborted) {
+          stopped = true
+          throw PdfParser.createAbortError()
+        }
+        const slotIndex = nextToSchedule
+        if (slotIndex >= options.pageNumbers.length) return
+        nextToSchedule += 1
+        const pageNumber = options.pageNumbers[slotIndex]
+        try {
+          const page = await lease.pdf.getPage(pageNumber)
+          const viewport = page.getViewport({ scale: 1 })
+          const lazyPage = PdfParser.createOpenDocumentPage(
+            owner,
+            pageNumber,
+            viewport.width,
+            viewport.height
+          )
+          slots[slotIndex] = {
+            id: lazyPage.id,
+            pageNumber,
+            size: { x: viewport.width, y: viewport.height },
+            getData: async () => lazyPage
+          }
+          while (slots[nextToEmit] !== undefined) {
+            const readyPage = slots[nextToEmit]
+            nextToEmit += 1
+            completed += 1
+            onProgress?.({
+              stage: 'encode:page',
+              current: completed,
+              total: options.pageNumbers.length,
+              message: `Loaded page ${readyPage?.pageNumber ?? pageNumber}`
+            })
+          }
+        } catch (error: unknown) {
+          stopped = true
+          throw error
+        }
+      }
+    }
+
+    const workerCount = Math.min(
+      options.scanConcurrency,
+      options.pageNumbers.length
+    )
+    const results = await Promise.allSettled(
+      Array.from({ length: workerCount }, () => worker())
+    )
+    const failed = results.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected'
+    )
+    if (failed) throw failed.reason
+    return slots.filter((page): page is PageInfo => page !== undefined)
+  }
+
+  private static createOpenDocumentPage(
+    owner: PdfSessionOwner,
+    pageNumber: number,
+    width: number,
+    height: number
+  ): IntermediatePage {
+    const context = PdfParser.getOpenDocumentContext(owner)
+    return new IntermediatePage({
+      id: `${context.pdfId}-page-${pageNumber}`,
+      number: pageNumber,
+      width,
+      height,
+      content: [],
+      thumbnail: undefined,
+      getContentFn: () =>
+        PdfParser.getOpenDocumentPageContent(owner, pageNumber),
+      getThumbnailFn: (scale: number) =>
+        PdfParser.getOpenDocumentPageThumbnail(owner, pageNumber, scale)
+    })
+  }
+
+  private static async getOpenDocumentPageContent(
+    owner: PdfSessionOwner,
+    pageNumber: number
+  ): Promise<IntermediateContent[]> {
+    const callLease = await owner.acquire()
+    owner.release(callLease)
+    const context = PdfParser.getOpenDocumentContext(owner)
+    let underlyingTask = context.contentTasks.get(pageNumber)
+    if (!underlyingTask) {
+      underlyingTask = PdfParser.loadOpenDocumentPageContent(owner, pageNumber)
+      context.contentTasks.set(pageNumber, underlyingTask)
+      underlyingTask.catch(() => {
+        if (context.contentTasks.get(pageNumber) === underlyingTask) {
+          context.contentTasks.delete(pageNumber)
+        }
+      })
+    }
+    return await PdfParser.withTimeout(
+      underlyingTask,
+      context.pageLoadTimeoutMs,
+      `Timed out while loading page ${pageNumber} content`
+    )
+  }
+
+  private static async loadOpenDocumentPageContent(
+    owner: PdfSessionOwner,
+    pageNumber: number
+  ): Promise<IntermediateContent[]> {
+    const lease = await owner.acquire()
+    try {
+      const context = PdfParser.getOpenDocumentContext(owner)
+      const page = await lease.pdf.getPage(pageNumber)
+      const viewport = page.getViewport({ scale: 1 })
+      const textContent = await page.getTextContent({
+        includeMarkedContent: false
+      })
+      const texts = PdfParser.mapTextContentToIntermediate(
+        textContent,
+        context.pdfId,
+        pageNumber,
+        viewport
+      )
+      for (const text of texts) text.opacity = text.opacity ?? 1
+      const imageRecords = await PdfParser.extractImagesFromPage(
+        page,
+        context.pdfId,
+        pageNumber
+      )
+      for (const record of imageRecords) {
+        for (const warning of record.warnings) {
+          PdfParser.warnUnsupportedImage(warning)
+        }
+      }
+      const images = imageRecords.map(
+        (record) =>
+          new IntermediateImage({
+            id: record.id,
+            src: record.src ?? '',
+            polygon: record.polygon,
+            opacity: record.opacity
+          })
+      )
+      return [...texts, ...images]
+    } finally {
+      owner.release(lease)
+    }
+  }
+
+  private static async getOpenDocumentPageThumbnail(
+    owner: PdfSessionOwner,
+    pageNumber: number,
+    scale: number
+  ): Promise<IntermediateImage | undefined> {
+    const callLease = await owner.acquire()
+    owner.release(callLease)
+    const normalizedScale = PdfParser.normalizeThumbnailScale(scale)
+    const context = PdfParser.getOpenDocumentContext(owner)
+    let pageBuckets = context.thumbnailBuckets.get(pageNumber)
+    if (!pageBuckets) {
+      pageBuckets = new Map()
+      context.thumbnailBuckets.set(pageNumber, pageBuckets)
+    }
+    const existing = pageBuckets.get(normalizedScale)
+    if (existing) {
+      existing.lastUsed = ++context.thumbnailClock
+      return await PdfParser.withTimeout(
+        existing.promise,
+        context.pageLoadTimeoutMs,
+        `Timed out while rendering page ${pageNumber} thumbnail`
+      )
+    }
+
+    const bucket: ThumbnailBucket = {
+      fulfilled: false,
+      lastUsed: ++context.thumbnailClock,
+      promise: Promise.resolve(undefined)
+    }
+    const underlyingTask = PdfParser.renderOpenDocumentPageThumbnail(
+      owner,
+      pageNumber,
+      normalizedScale
+    )
+    bucket.promise = underlyingTask
+    pageBuckets.set(normalizedScale, bucket)
+    underlyingTask.then(
+      () => {
+        bucket.fulfilled = true
+        bucket.lastUsed = ++context.thumbnailClock
+        PdfParser.pruneOpenDocumentThumbnailBuckets(pageBuckets)
+      },
+      () => {
+        if (pageBuckets?.get(normalizedScale) === bucket) {
+          pageBuckets.delete(normalizedScale)
+        }
+      }
+    )
+    return await PdfParser.withTimeout(
+      underlyingTask,
+      context.pageLoadTimeoutMs,
+      `Timed out while rendering page ${pageNumber} thumbnail`
+    )
+  }
+
+  private static async renderOpenDocumentPageThumbnail(
+    owner: PdfSessionOwner,
+    pageNumber: number,
+    scale: number
+  ): Promise<IntermediateImage | undefined> {
+    const lease = await owner.acquire()
+    try {
+      const page = await lease.pdf.getPage(pageNumber)
+      return await PdfParser.renderThumbnail(page, scale)
+    } finally {
+      owner.release(lease)
+    }
+  }
+
+  // Scale normalization defines both the cache key and render scale.
+  private static normalizeThumbnailScale(scale: number): number {
+    if (!Number.isFinite(scale) || scale <= 0) {
+      throw new RangeError('Thumbnail scale must be a positive finite number')
+    }
+    return Math.max(0.01, Math.round(scale * 100) / 100)
+  }
+
+  private static pruneOpenDocumentThumbnailBuckets(
+    buckets: Map<number, ThumbnailBucket>
+  ): void {
+    const fulfilled = [...buckets.entries()]
+      .filter(([, bucket]) => bucket.fulfilled)
+      .sort((left, right) => left[1].lastUsed - right[1].lastUsed)
+    while (fulfilled.length > 2) {
+      const oldest = fulfilled.shift()
+      if (oldest) buckets.delete(oldest[0])
+    }
+  }
+
+  private static getOpenDocumentContext(
+    owner: PdfSessionOwner
+  ): OpenDocumentLazyContext {
+    const context = PdfParser.openDocumentContexts.get(owner)
+    if (!context) throw new Error('document disposed')
+    return context
+  }
+
+  private static createAbortError(): Error {
+    const error = new Error('The operation was aborted')
+    error.name = 'AbortError'
+    return error
+  }
+
+  private static createAbortGate(signal: AbortSignal | undefined): {
+    close: () => void
+    promise: Promise<never>
+  } {
+    let abortListener: (() => void) | undefined
+    const promise = new Promise<never>((_, reject) => {
+      if (!signal) return
+      abortListener = () => reject(PdfParser.createAbortError())
+      signal.addEventListener('abort', abortListener, { once: true })
+    })
+    return {
+      close: () => {
+        if (signal && abortListener) {
+          signal.removeEventListener('abort', abortListener)
+        }
+      },
+      promise
+    }
+  }
+
+  private static attachRetirement(
+    reason: unknown,
+    retirement: Promise<void>
+  ): RetirementError {
+    const error =
+      reason instanceof Error
+        ? reason
+        : new Error(String(reason ?? 'Unknown error'))
+    const retirementError = error as RetirementError
+    retirementError.retirement = retirement
+    return retirementError
+  }
 
   static async encode(
     fileOrBuffer: File | ArrayBuffer,
@@ -2484,7 +2988,7 @@ export class PdfParser extends DocumentParser {
   }
 
   private static async buildOutline(
-    pdf: PDFDocumentProxy,
+    pdf: LockedPdfDocumentProxy,
     pdfId: string
   ): Promise<IntermediateOutline[] | undefined> {
     let nodes: Awaited<ReturnType<PDFDocumentProxy['getOutline']>> = []
@@ -2538,7 +3042,7 @@ export class PdfParser extends DocumentParser {
   }
 
   private static async mapOutlineDest(
-    pdf: PDFDocumentProxy,
+    pdf: LockedPdfDocumentProxy,
     node: Awaited<ReturnType<PDFDocumentProxy['getOutline']>>[number],
     pdfId: string
   ): Promise<IntermediateOutlineDest> {
@@ -2566,7 +3070,7 @@ export class PdfParser extends DocumentParser {
   }
 
   private static async mapChildOutlineDest(
-    pdf: PDFDocumentProxy,
+    pdf: LockedPdfDocumentProxy,
     items: Awaited<ReturnType<PDFDocumentProxy['getOutline']>> | undefined,
     pdfId: string
   ): Promise<IntermediateOutlineDest[]> {
@@ -2594,7 +3098,7 @@ export class PdfParser extends DocumentParser {
   }
 
   private static async resolveDestArray(
-    pdf: PDFDocumentProxy,
+    pdf: LockedPdfDocumentProxy,
     rawDest: Awaited<ReturnType<PDFDocumentProxy['getOutline']>>[number]['dest']
   ): Promise<unknown[]> {
     if (typeof rawDest === 'string') {
@@ -2620,7 +3124,7 @@ export class PdfParser extends DocumentParser {
   }
 
   private static async buildPageDest(
-    pdf: PDFDocumentProxy,
+    pdf: LockedPdfDocumentProxy,
     destArray: unknown[],
     pdfId: string,
     items: Awaited<ReturnType<PDFDocumentProxy['getOutline']>> | undefined
@@ -2655,7 +3159,7 @@ export class PdfParser extends DocumentParser {
   }
 
   private static async appendOutlineChildren<T extends IntermediateOutlineDest>(
-    pdf: PDFDocumentProxy,
+    pdf: LockedPdfDocumentProxy,
     items: Awaited<ReturnType<PDFDocumentProxy['getOutline']>> | undefined,
     pdfId: string,
     dest: T
