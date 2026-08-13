@@ -1209,7 +1209,13 @@ export class PdfParser extends DocumentParser {
       data: new Uint8Array(dataCopy),
       standardFontDataUrl
     } as Parameters<typeof getDocument>[0])
-    const pdf = await loadingTask.promise
+    let pdf: PDFDocumentProxy
+    try {
+      pdf = await loadingTask.promise
+    } catch (error: unknown) {
+      await loadingTask.destroy().catch(() => undefined)
+      throw error
+    }
 
     return {
       loadingTask,
