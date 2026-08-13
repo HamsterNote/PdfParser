@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-08-13
+
+### Added
+- 新增 `PdfParser.openDocument` 惰性加载 API：返回 `OpenDocumentHandle`（含 `id`、`title`、`pageCount`、`document`、`dispose`），页尺寸共享会话急切预取、页面内容按需加载，支持 `pages`、`pageLoadTimeoutMs`、`scanConcurrency`、`signal`、`pdfjsOverrides`、`onProgress` 选项
+- 新增每文档 `PdfSessionOwner` 会话管理，修复加载失败时的 worker 泄漏
+- 新增 openDocument 性能基准脚本与多夹具生成基建（`scripts/benchmarkOpenDocument.mjs`、`scripts/cdpProbe.mjs`）
+
+### Fixed
+- 修复 `d.ts` 构建产物缺失，导出 `openDocument` 相关类型
+- 惰性加载与扫描超时兜底，`dispose` 可强制 settle 挂起的在途操作
+- 销毁等待超时后晚到的加载会话，避免 worker 泄漏
+
 ## [0.7.0] - 2026-06-01
 
 ### Added
