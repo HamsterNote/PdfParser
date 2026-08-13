@@ -102,10 +102,10 @@ export class PdfSessionOwner {
     this.notifyDrain()
   }
 
-  dispose(): Promise<void> {
+  dispose(gracefulDrainTimeoutMs = 30000): Promise<void> {
     if (this.disposePromise) return this.disposePromise
     this.state = 'closing'
-    this.disposePromise = this.disposeOnce()
+    this.disposePromise = this.disposeOnce(gracefulDrainTimeoutMs)
     return this.disposePromise
   }
 
@@ -148,20 +148,47 @@ export class PdfSessionOwner {
     return lease
   }
 
-  private async disposeOnce(): Promise<void> {
+  private async disposeOnce(gracefulDrainTimeoutMs: number): Promise<void> {
     try {
-      await this.waitForDrain()
-      if (this.lastSession && !this.destroyAttempted) {
-        this.destroyAttempted = true
-        try {
-          await this.lastSession.loadingTask.destroy()
-        } catch (error: unknown) {
-          this.destroyErrors.push(error)
-        }
+      const drain = this.waitForDrain()
+      const drainedGracefully = await this.waitForGracefulDrain(
+        drain,
+        gracefulDrainTimeoutMs
+      )
+      if (!drainedGracefully) {
+        await Promise.all([drain, this.destroySessionOnce()])
+      } else {
+        await this.destroySessionOnce()
       }
     } finally {
       this.state = 'disposed'
       this.notifyDrain()
+    }
+  }
+
+  private waitForGracefulDrain(
+    drain: Promise<void>,
+    timeoutMs: number
+  ): Promise<boolean> {
+    if (!Number.isFinite(timeoutMs) || timeoutMs < 0) {
+      return drain.then(() => true)
+    }
+    return new Promise((resolve) => {
+      const timeoutId = setTimeout(() => resolve(false), timeoutMs)
+      drain.then(() => {
+        clearTimeout(timeoutId)
+        resolve(true)
+      })
+    })
+  }
+
+  private async destroySessionOnce(): Promise<void> {
+    if (!this.lastSession || this.destroyAttempted) return
+    this.destroyAttempted = true
+    try {
+      await this.lastSession.loadingTask.destroy()
+    } catch (error: unknown) {
+      this.destroyErrors.push(error)
     }
   }
 

@@ -129,6 +129,42 @@ describe('PdfSessionOwner', () => {
     expect(fixture.destroy).toHaveBeenCalledTimes(1)
   })
 
+  it('forces a stuck lease to settle after the graceful drain deadline', async () => {
+    const operation = createDeferred<string>()
+    const fixture = createSession()
+    fixture.destroy.mockImplementation(async () => {
+      operation.reject(new Error('worker destroyed'))
+    })
+    const owner = new PdfSessionOwner(async () => fixture.session)
+    const lease = await owner.acquire()
+    const task = operation.promise.finally(() => owner.release(lease))
+
+    const disposal = owner.dispose(5)
+
+    await expect(task).rejects.toThrow('worker destroyed')
+    await expect(disposal).resolves.toBeUndefined()
+    expect(fixture.destroy).toHaveBeenCalledTimes(1)
+    expect(snapshot(owner)).toMatchObject({
+      activeLeases: 0,
+      state: 'disposed'
+    })
+  })
+
+  it('lets a normal in-flight operation complete before the drain deadline', async () => {
+    const operation = createDeferred<string>()
+    const fixture = createSession()
+    const owner = new PdfSessionOwner(async () => fixture.session)
+    const lease = await owner.acquire()
+    const task = operation.promise.finally(() => owner.release(lease))
+
+    const disposal = owner.dispose(100)
+    operation.resolve('completed normally')
+
+    await expect(task).resolves.toBe('completed normally')
+    await disposal
+    expect(fixture.destroy).toHaveBeenCalledTimes(1)
+  })
+
   it('returns the same promise for repeated dispose calls', async () => {
     const fixture = createSession()
     const owner = new PdfSessionOwner(async () => fixture.session)

@@ -374,7 +374,9 @@ export class PdfParser extends DocumentParser {
       return handle
     } catch (error: unknown) {
       initializationAbort.close()
-      const retirement = owner.dispose()
+      const retirement = owner.dispose(
+        PdfParser.resolveOpenDocumentPageLoadTimeout(options)
+      )
       retirement.catch(() => undefined)
       if (signal?.aborted) {
         throw PdfParser.attachRetirement(
@@ -452,7 +454,7 @@ export class PdfParser extends DocumentParser {
         title,
         pageCount: pdf.numPages,
         document,
-        dispose: () => owner.dispose()
+        dispose: () => owner.dispose(resolved.pageLoadTimeoutMs)
       }
     } finally {
       owner.release(lease)
@@ -484,6 +486,43 @@ export class PdfParser extends DocumentParser {
     }
   }
 
+  private static resolveOpenDocumentPageLoadTimeout(
+    options: OpenDocumentOptions
+  ): number {
+    const requestedTimeout = Number.isFinite(options.pageLoadTimeoutMs)
+      ? Math.floor(options.pageLoadTimeoutMs as number)
+      : PdfParser.defaultEncodeOptions.pageLoadTimeoutMs
+    return Math.max(1, requestedTimeout)
+  }
+
+  private static async loadOpenDocumentPageForScan(
+    owner: PdfSessionOwner,
+    lease: LockedPdfSession,
+    pageNumber: number,
+    timeoutMs: number,
+    stopScheduling: () => void
+  ): Promise<PDFPageProxy> {
+    const operation = lease.pdf.getPage(pageNumber)
+    try {
+      return await PdfParser.withTimeout(
+        operation,
+        timeoutMs,
+        `Timed out while loading page ${pageNumber} during PDF open`
+      )
+    } catch (error: unknown) {
+      if (
+        error instanceof Error &&
+        error.message ===
+          `Timed out while loading page ${pageNumber} during PDF open`
+      ) {
+        stopScheduling()
+        owner.dispose(0).catch(() => undefined)
+        await operation.catch(() => undefined)
+      }
+      throw error
+    }
+  }
+
   private static async scanOpenDocumentPages(
     owner: PdfSessionOwner,
     lease: LockedPdfSession,
@@ -510,7 +549,15 @@ export class PdfParser extends DocumentParser {
         nextToSchedule += 1
         const pageNumber = options.pageNumbers[slotIndex]
         try {
-          const page = await lease.pdf.getPage(pageNumber)
+          const page = await PdfParser.loadOpenDocumentPageForScan(
+            owner,
+            lease,
+            pageNumber,
+            options.pageLoadTimeoutMs,
+            () => {
+              stopped = true
+            }
+          )
           const viewport = page.getViewport({ scale: 1 })
           const lazyPage = PdfParser.createOpenDocumentPage(
             owner,
@@ -581,18 +628,23 @@ export class PdfParser extends DocumentParser {
     owner: PdfSessionOwner,
     pageNumber: number
   ): Promise<IntermediateContent[]> {
-    const callLease = await owner.acquire()
-    owner.release(callLease)
+    const lease = await owner.acquire()
     const context = PdfParser.getOpenDocumentContext(owner)
     let underlyingTask = context.contentTasks.get(pageNumber)
     if (!underlyingTask) {
-      underlyingTask = PdfParser.loadOpenDocumentPageContent(owner, pageNumber)
+      underlyingTask = PdfParser.loadOpenDocumentPageContent(
+        owner,
+        lease,
+        pageNumber
+      )
       context.contentTasks.set(pageNumber, underlyingTask)
       underlyingTask.catch(() => {
         if (context.contentTasks.get(pageNumber) === underlyingTask) {
           context.contentTasks.delete(pageNumber)
         }
       })
+    } else {
+      underlyingTask.finally(() => owner.release(lease)).catch(() => undefined)
     }
     return await PdfParser.withTimeout(
       underlyingTask,
@@ -603,9 +655,9 @@ export class PdfParser extends DocumentParser {
 
   private static async loadOpenDocumentPageContent(
     owner: PdfSessionOwner,
+    lease: LockedPdfSession,
     pageNumber: number
   ): Promise<IntermediateContent[]> {
-    const lease = await owner.acquire()
     try {
       const context = PdfParser.getOpenDocumentContext(owner)
       const page = await lease.pdf.getPage(pageNumber)
@@ -650,9 +702,14 @@ export class PdfParser extends DocumentParser {
     pageNumber: number,
     scale: number
   ): Promise<IntermediateImage | undefined> {
-    const callLease = await owner.acquire()
-    owner.release(callLease)
-    const normalizedScale = PdfParser.normalizeThumbnailScale(scale)
+    const lease = await owner.acquire()
+    let normalizedScale: number
+    try {
+      normalizedScale = PdfParser.normalizeThumbnailScale(scale)
+    } catch (error: unknown) {
+      owner.release(lease)
+      throw error
+    }
     const context = PdfParser.getOpenDocumentContext(owner)
     let pageBuckets = context.thumbnailBuckets.get(pageNumber)
     if (!pageBuckets) {
@@ -662,6 +719,9 @@ export class PdfParser extends DocumentParser {
     const existing = pageBuckets.get(normalizedScale)
     if (existing) {
       existing.lastUsed = ++context.thumbnailClock
+      existing.promise
+        .finally(() => owner.release(lease))
+        .catch(() => undefined)
       return await PdfParser.withTimeout(
         existing.promise,
         context.pageLoadTimeoutMs,
@@ -669,17 +729,17 @@ export class PdfParser extends DocumentParser {
       )
     }
 
-    const bucket: ThumbnailBucket = {
-      fulfilled: false,
-      lastUsed: ++context.thumbnailClock,
-      promise: Promise.resolve(undefined)
-    }
     const underlyingTask = PdfParser.renderOpenDocumentPageThumbnail(
       owner,
+      lease,
       pageNumber,
       normalizedScale
     )
-    bucket.promise = underlyingTask
+    const bucket: ThumbnailBucket = {
+      fulfilled: false,
+      lastUsed: ++context.thumbnailClock,
+      promise: underlyingTask
+    }
     pageBuckets.set(normalizedScale, bucket)
     underlyingTask.then(
       () => {
@@ -702,10 +762,10 @@ export class PdfParser extends DocumentParser {
 
   private static async renderOpenDocumentPageThumbnail(
     owner: PdfSessionOwner,
+    lease: LockedPdfSession,
     pageNumber: number,
     scale: number
   ): Promise<IntermediateImage | undefined> {
-    const lease = await owner.acquire()
     try {
       const page = await lease.pdf.getPage(pageNumber)
       return await PdfParser.renderThumbnail(page, scale)

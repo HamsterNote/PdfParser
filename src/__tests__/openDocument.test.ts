@@ -446,6 +446,73 @@ describe('PdfParser.openDocument', () => {
     expect(retired).toBe(true)
   })
 
+  it('times out a stuck scan and resolves retirement after forced settle', async () => {
+    const page = createDeferred<PDFPageProxy>()
+    const fixture = createSession({
+      numPages: 1,
+      getPage: jest.fn(() => page.promise)
+    })
+    fixture.destroy.mockImplementation(async () => {
+      page.reject(new Error('worker destroyed'))
+    })
+    jest.spyOn(parser, 'loadPdfSession').mockResolvedValue(fixture.session)
+
+    const error = await captureRejection(
+      PdfParser.openDocument(new ArrayBuffer(4), { pageLoadTimeoutMs: 5 })
+    )
+
+    expect(error.message).toContain('Timed out while loading page 1')
+    await expect(error.retirement).resolves.toBeUndefined()
+    expect(fixture.destroy).toHaveBeenCalledTimes(1)
+  })
+
+  it('forces a never-settling lazy operation to reject during dispose', async () => {
+    const text =
+      createDeferred<Awaited<ReturnType<PDFPageProxy['getTextContent']>>>()
+    const page = createPage(1)
+    jest.spyOn(page, 'getTextContent').mockReturnValue(text.promise)
+    const fixture = createSession({
+      numPages: 1,
+      getPage: jest.fn(async () => page)
+    })
+    fixture.destroy.mockImplementation(async () => {
+      text.reject(new Error('worker destroyed'))
+    })
+    jest.spyOn(parser, 'loadPdfSession').mockResolvedValue(fixture.session)
+    const handle = track(
+      await PdfParser.openDocument(new ArrayBuffer(4), {
+        pageLoadTimeoutMs: 5
+      })
+    )
+    const lazyPage = await handle.document.getPageByPageNumber(1)
+    const content = lazyPage?.getContent()
+    await expect(content).rejects.toThrow('Timed out')
+
+    await expect(handle.dispose()).resolves.toBeUndefined()
+    expect(fixture.destroy).toHaveBeenCalledTimes(1)
+  })
+
+  it('forces a never-settling thumbnail render to reject during dispose', async () => {
+    const rendering = createDeferred<IntermediateImage | undefined>()
+    const fixture = createSession({ numPages: 1 })
+    fixture.destroy.mockImplementation(async () => {
+      rendering.reject(new Error('worker destroyed'))
+    })
+    jest.spyOn(parser, 'loadPdfSession').mockResolvedValue(fixture.session)
+    jest.spyOn(parser, 'renderThumbnail').mockReturnValue(rendering.promise)
+    const handle = track(
+      await PdfParser.openDocument(new ArrayBuffer(4), {
+        pageLoadTimeoutMs: 5
+      })
+    )
+    const page = await handle.document.getPageByPageNumber(1)
+    const thumbnail = page?.getThumbnail(1)
+    await expect(thumbnail).rejects.toThrow('Timed out')
+
+    await expect(handle.dispose()).resolves.toBeUndefined()
+    expect(fixture.destroy).toHaveBeenCalledTimes(1)
+  })
+
   it('drains every started scan worker before resolving retirement', async () => {
     const firstPage = createDeferred<PDFPageProxy>()
     const secondPage = createDeferred<PDFPageProxy>()
