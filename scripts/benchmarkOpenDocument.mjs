@@ -27,6 +27,20 @@ const EVIDENCE_JSON = 'task-1-pdf-streaming-load.json'
 const EVIDENCE_LOG = 'task-1-pdf-streaming-load.log'
 const T11_EVIDENCE_JSON = 'task-11-node-benchmark.json'
 const T11_EVIDENCE_LOG = 'task-11-node-benchmark.log'
+const HELP_TEXT = `用法：
+  node scripts/benchmarkOpenDocument.mjs --evidence-dir <绝对路径>
+  node scripts/benchmarkOpenDocument.mjs --emit-e2e <绝对路径>
+  node scripts/benchmarkOpenDocument.mjs --help | -h
+
+选项：
+  --evidence-dir <绝对路径>  运行基准并将 task-1/task-11 证据写入指定目录
+  --emit-e2e <绝对路径>     生成 large-e2e-a/b/c.pdf 到指定目录
+  --child <JSON>            内部冷进程运行参数
+  --help, -h                显示本帮助并退出
+
+环境变量：
+  PDF_BENCH_REAL=<PDF 路径>  将真实大 PDF 加入基准矩阵
+`
 let pdfjsModulePromise
 
 const FIXTURES = [
@@ -40,7 +54,8 @@ function parseArguments(argv) {
   const parsed = {
     evidenceDir: undefined,
     emitE2eDir: undefined,
-    child: undefined
+    child: undefined,
+    help: false
   }
   const remaining = [...argv]
   while (remaining.length > 0) {
@@ -51,6 +66,8 @@ function parseArguments(argv) {
       parsed.emitE2eDir = remaining.shift()
     } else if (argument === '--child') {
       parsed.child = JSON.parse(remaining.shift())
+    } else if (argument === '--help' || argument === '-h') {
+      parsed.help = true
     } else {
       throw new Error(`未知参数：${argument}`)
     }
@@ -693,6 +710,10 @@ async function main() {
     throw new Error(`需要 Node.js >=18，当前为 ${process.version}`)
   }
   const argumentsValue = parseArguments(process.argv.slice(2))
+  if (argumentsValue.help) {
+    process.stdout.write(HELP_TEXT)
+    return
+  }
   if (argumentsValue.child) {
     await runChild(argumentsValue.child)
     return
