@@ -10,7 +10,9 @@ export type {
   DecodeProgressEvent,
   DecodeProgressReporter,
   EncodeProgressEvent,
-  EncodeProgressReporter
+  EncodeProgressReporter,
+  OpenDocumentHandle,
+  OpenDocumentOptions
 } from './pdfParser'
 
 export type {
