@@ -41,3 +41,8 @@ test-results/
 
 # OpenCode 工作目录
 .omo/
+
+# 本地联调包与性能夹具
+.yalc/
+yalc.lock
+scripts/.fixtures/
